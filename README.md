@@ -16,13 +16,13 @@ API, it currently runs on a demo database.
 A question travels through five steps before an answer comes back:
 
 ```mermaid
-flowchart LR
+flowchart TD
     Q(["Question in plain English"]) --> S["Read the database schema"]
     S --> G["LLM writes a SQL query"]
-    G --> V{"Safe? (read-only SELECT)"}
-    V -- no --> X["Rejected — query shown"]
-    V -- yes --> R["Run the query<br/>(read-only, row-capped)"]
-    R --> A(["Answer: summary + number + chart + table"])
+    G --> V{"Read-only SELECT?"}
+    V -- no --> X["Rejected"]
+    V -- yes --> R["Run the query, row-capped"]
+    R --> A(["Answer: summary, number, chart, table"])
 ```
 
 1. **Read the schema** — list the tables, columns, and relationships so the
