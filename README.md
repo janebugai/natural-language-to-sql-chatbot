@@ -95,6 +95,8 @@ free web service.
 
 1. Push to GitHub.
 2. In Render: **New +** -> **Blueprint** -> select this repo -> **Apply**.
+   (Use Blueprint, not "Web Service" — a manually created service ignores
+   `render.yaml` and you'd have to set the build/start commands by hand.)
 3. When prompted, set `OPENAI_API_KEY` (it is `sync: false`, so Render never
    reads it from the repo).
 
@@ -107,6 +109,10 @@ What the Blueprint runs:
 
 Notes:
 
+- **Python version.** `.python-version` pins CPython 3.11.9. Render otherwise
+  defaults to its newest interpreter, which may not have prebuilt wheels for
+  the pinned dependencies (pip then tries to compile them and fails in the
+  build sandbox).
 - **gunicorn + uvicorn worker.** Render (Linux) runs gunicorn as the process
   manager with a uvicorn ASGI worker. gunicorn does **not** run on Windows, so
   keep using `uvicorn app.main:app --reload` for local development.
