@@ -95,8 +95,12 @@ Optional: set `SQL_MODEL` / `SUMMARY_MODEL` in `.env` to use a different model
 python create_demo_db.py
 ```
 
-This writes `demo.db` — a small customers / products / orders / order_items
-schema with ~120 sample orders — so there's something to query immediately.
+This writes `demo.db` — an eight-table online-store schema (`categories`,
+`customers`, `products`, `orders`, `order_items`, `reviews`, `shipments`,
+`returns`) with ~300 customers and ~3,500 orders. Every date is anchored to
+today and order volume is seasonally weighted, so time-based questions
+("revenue last month", "return rate this quarter") always hit real data.
+Re-run it any time to refresh; the data shape is deterministic (fixed seed).
 
 ### 4. Run
 
