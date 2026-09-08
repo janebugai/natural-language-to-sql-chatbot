@@ -88,6 +88,37 @@ curl -X POST http://localhost:8000/ask \
 Set `"include_summary": false` in the request to skip the summary call (roughly
 halves the OpenAI cost per request).
 
+## Deploy to Render
+
+The repo includes [`render.yaml`](render.yaml), a Blueprint that provisions a
+free web service.
+
+1. Push to GitHub.
+2. In Render: **New +** -> **Blueprint** -> select this repo -> **Apply**.
+3. When prompted, set `OPENAI_API_KEY` (it is `sync: false`, so Render never
+   reads it from the repo).
+
+What the Blueprint runs:
+
+| Step  | Command |
+|-------|---------|
+| Build | `pip install -r requirements.txt && python create_demo_db.py` |
+| Start | `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT --timeout 120` |
+
+Notes:
+
+- **gunicorn + uvicorn worker.** Render (Linux) runs gunicorn as the process
+  manager with a uvicorn ASGI worker. gunicorn does **not** run on Windows, so
+  keep using `uvicorn app.main:app --reload` for local development.
+- `$PORT` is injected by Render; bind to it, not a fixed port.
+- `--timeout 120` gives the OpenAI round-trip room before a worker is killed.
+- `demo.db` is rebuilt on every deploy (Render's disk is ephemeral). That's
+  fine — the app only reads from it. To ship your own data instead, remove the
+  `create_demo_db.py` step and point `app/db.py` at a managed database.
+- Prefer plain uvicorn? Swap the start command for
+  `uvicorn app.main:app --host 0.0.0.0 --port $PORT` and drop `gunicorn` from
+  `requirements.txt`.
+
 ## Swapping in your own database
 
 Everything in `app/db.py` is written for SQLite, but the pattern generalizes:

@@ -1,0 +1,15 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: push to GitHub, then in Render: New + -> Blueprint -> pick this repo.
+services:
+  - type: web
+    name: nl-to-sql-chatbot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python create_demo_db.py
+    startCommand: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT --timeout 120
+    healthCheckPath: /health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false          # set this in the Render dashboard; never commit it
+      - key: PYTHON_VERSION
+        value: "3.11.9"
