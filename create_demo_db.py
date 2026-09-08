@@ -74,13 +74,19 @@ def build_demo_db():
     cur = conn.cursor()
     cur.executescript(SCHEMA)
 
+    # Dates are anchored to "today" so relative questions ("last month",
+    # "this year") always land on real data, wherever/whenever this runs.
+    today = date.today()
+    ORDER_WINDOW_DAYS = 548  # ~18 months
+
     # Customers
     first_names = ["Alex", "Jordan", "Sam", "Taylor", "Morgan", "Casey", "Riley", "Jamie"]
     last_names = ["Chen", "Patel", "Garcia", "Smith", "Nguyen", "Brown", "Kim", "Rossi"]
     customers = []
     for i in range(1, 31):
         fn, ln = random.choice(first_names), random.choice(last_names)
-        signup = date(2023, 1, 1) + timedelta(days=random.randint(0, 600))
+        # signed up sometime before the order window opens
+        signup = today - timedelta(days=random.randint(ORDER_WINDOW_DAYS, ORDER_WINDOW_DAYS + 600))
         customers.append((i, f"{fn} {ln}", f"{fn.lower()}.{ln.lower()}{i}@example.com",
                            random.choice(CITIES), signup.isoformat()))
     cur.executemany("INSERT INTO customers VALUES (?,?,?,?,?)", customers)
@@ -96,7 +102,7 @@ def build_demo_db():
     items = []
     for _ in range(120):
         cust_id = random.randint(1, 30)
-        order_date = date(2024, 1, 1) + timedelta(days=random.randint(0, 500))
+        order_date = today - timedelta(days=random.randint(0, ORDER_WINDOW_DAYS))
         status = random.choices(STATUSES, weights=[70, 15, 10, 5])[0]
         orders.append((order_id, cust_id, order_date.isoformat(), status))
 
