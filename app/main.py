@@ -18,7 +18,7 @@ from app.llm import generate_sql, summarize_results
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="NL-to-SQL Chatbot")
+app = FastAPI(title="Natural Language to SQL Chatbot")
 
 app.add_middleware(
     CORSMiddleware,
