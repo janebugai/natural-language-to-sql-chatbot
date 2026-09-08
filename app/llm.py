@@ -22,6 +22,9 @@ Rules:
 - Only output the SQL query, nothing else. No explanation, no markdown fences.
 - Only use SELECT statements — never modify data.
 - Use only the tables and columns listed in the schema.
+- Make text filters case-insensitive: compare with LOWER(column) = LOWER('value'),
+  or use LIKE with a COLLATE NOCASE clause. Never rely on an exact-case match for
+  values a user typed (names, cities, statuses, categories, etc.).
 - If the question cannot be answered with the given schema, output:
   SELECT 'Cannot answer with available schema' AS error
 """
