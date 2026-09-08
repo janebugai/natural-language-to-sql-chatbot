@@ -1,10 +1,10 @@
 # Natural Language to SQL Chatbot
 
-This chatbot lets a non-technical user query the database of an imaginary
-store in plain English. A user asks a question ("Which products sold the most
-last month?"); an LLM writes the SQL, the system checks it is safe, runs it,
-and returns a written summary, the key figure, a chart, and the data table,
-with the query shown for transparency.
+This chatbot lets a non-technical user query the demo database in plain
+English. A user asks a question ("Which products sold the most last month?");
+an LLM writes the SQL, the system checks it is safe, runs it, and returns a
+written summary, the key figure, a chart, and the data table, with the query
+shown for transparency.
 
 It exists to cut the volume of routine data requests to the analytics team
 and give stakeholders faster self-serve reporting. It only runs read-only
@@ -16,13 +16,13 @@ API, it currently runs on a demo database.
 A question travels through five steps before an answer comes back:
 
 ```mermaid
-flowchart LR
+flowchart TD
     Q(["Question in plain English"]) --> S["Read the database schema"]
     S --> G["LLM writes a SQL query"]
-    G --> V{"Safe? (read-only SELECT)"}
-    V -- no --> X["Rejected — query shown"]
-    V -- yes --> R["Run the query<br/>(read-only, row-capped)"]
-    R --> A(["Answer: summary + number + chart + table"])
+    G --> V{"Read-only SELECT?"}
+    V -- no --> X["Rejected"]
+    V -- yes --> R["Run the query, row-capped"]
+    R --> A(["Answer: summary, number, chart, table"])
 ```
 
 1. **Read the schema** — list the tables, columns, and relationships so the
