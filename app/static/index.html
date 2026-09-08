@@ -235,10 +235,10 @@
   }
   .bar-row { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
   .bar-row:last-child { border-bottom: none; }
-  .bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--sans); color: var(--ink-soft); }
   .bar-track { height: 8px; background: var(--paper-2); border-radius: 999px; }
   .bar-fill { height: 8px; background: var(--sky); border-radius: 999px; }
-  .bar-value { font-family: var(--mono); font-size: 11px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .bar-value { font-family: var(--sans); font-size: 12.5px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
   .table-wrap { overflow-x: auto; margin: 0 0 24px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
   table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
@@ -446,8 +446,12 @@ function renderChart(rows, a) {
 
 function renderTable(rows, a) {
   if (!rows || !rows.length) return '<p class="lede">Query returned no rows.</p>';
+  // Order rows by the detected measure, descending — matches the chart.
+  const ordered = a.valueCol
+    ? [...rows].sort((x, y) => Number(y[a.valueCol]) - Number(x[a.valueCol]))
+    : rows;
   const head = a.cols.map(c => `<th>${esc(c)}</th>`).join('');
-  const body = rows.map(r => `<tr>${a.cols.map(c => `<td>${fmt(r[c])}</td>`).join('')}</tr>`).join('');
+  const body = ordered.map(r => `<tr>${a.cols.map(c => `<td>${fmt(r[c])}</td>`).join('')}</tr>`).join('');
   return `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
