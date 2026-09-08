@@ -1,10 +1,10 @@
 # Natural Language to SQL Chatbot
 
-This chatbot lets a non-technical user query the database of an imaginary
-store in plain English. A user asks a question ("Which products sold the most
-last month?"); an LLM writes the SQL, the system checks it is safe, runs it,
-and returns a written summary, the key figure, a chart, and the data table,
-with the query shown for transparency.
+This chatbot lets a non-technical user query the demo database in plain
+English. A user asks a question ("Which products sold the most last month?");
+an LLM writes the SQL, the system checks it is safe, runs it, and returns a
+written summary, the key figure, a chart, and the data table, with the query
+shown for transparency.
 
 It exists to cut the volume of routine data requests to the analytics team
 and give stakeholders faster self-serve reporting. It only runs read-only
