@@ -406,11 +406,14 @@ viewResultBtn.addEventListener('click', () => { if (activeIdx !== null) selectTu
 })();
 
 /* ---------- analysis for callout + chart ---------- */
+const idish = c => /(^|_)id$/i.test(c);
+// A measure you can meaningfully add up (revenue) vs one you can't (an average, a rate).
+const additiveMeasure = c => !/(avg|average|mean|median|\brate\b|ratio|percent|pct|\bshare\b|per_)/i.test(c);
+
 function analyse(rows) {
   if (!rows || !rows.length) return {};
   const cols = Object.keys(rows[0]);
   const numCols = cols.filter(c => rows.every(r => looksNum(r[c])));
-  const idish = c => /(^|_)id$/i.test(c);
   const measureish = c => /(total|sum|count|revenue|amount|avg|average|price|spend|spent|qty|quantity|value|share|rate|balance)/i.test(c);
   const valueCol =
     numCols.find(measureish) ||
@@ -419,25 +422,51 @@ function analyse(rows) {
   const labelCol =
     cols.find(c => c !== valueCol && !numCols.includes(c)) ||
     cols.find(c => c !== valueCol);
-  return { cols, valueCol, labelCol };
+
+  const uniqueLabels = labelCol ? new Set(rows.map(r => r[labelCol])).size : rows.length;
+  const repeatedLabels = !!labelCol && uniqueLabels < rows.length;
+  // Row-level listing (e.g. "show all orders for X"): the label repeats and there's
+  // an id column. A per-row bar chart of that is just noise — show only the table.
+  const isDetail = repeatedLabels && cols.some(idish);
+  return { cols, valueCol, labelCol, repeatedLabels, isDetail, additive: !valueCol || additiveMeasure(valueCol) };
+}
+
+// Roll rows up by the label column, summing the measure. Used when a result has
+// repeated labels but wasn't GROUP BY-ed (so the user wants per-label totals).
+function rollupByLabel(rows, a) {
+  const acc = new Map();
+  for (const r of rows) acc.set(r[a.labelCol], (acc.get(r[a.labelCol]) || 0) + Number(r[a.valueCol] || 0));
+  return [...acc].map(([k, v]) => ({ [a.labelCol]: k, [a.valueCol]: Math.round(v * 1e4) / 1e4 }));
 }
 
 function renderCallout(rows, a) {
-  if (!a.valueCol) return '';
+  if (!a.valueCol || a.isDetail) return '';
   if (rows.length === 1) {
     const only = a.cols.length === 1;
     return `<div class="callout"><div class="v">${fmt(rows[0][a.valueCol])}</div>
       <div class="c kicker">${esc(a.valueCol)}${only || !a.labelCol ? '' : ' — ' + esc(rows[0][a.labelCol])}</div></div>`;
   }
-  let best = rows[0];
-  for (const r of rows) if (Number(r[a.valueCol]) > Number(best[a.valueCol])) best = r;
+  let data = rows, measure = a.valueCol;
+  if (a.repeatedLabels && a.additive && a.labelCol) {
+    data = rollupByLabel(rows, a);
+    measure = 'total ' + a.valueCol;
+  }
+  let best = data[0];
+  for (const r of data) if (Number(r[a.valueCol]) > Number(best[a.valueCol])) best = r;
   return `<div class="callout"><div class="v">${fmt(best[a.valueCol])}</div>
-    <div class="c kicker">Highest ${esc(a.valueCol)}${a.labelCol ? ' — ' + esc(best[a.labelCol]) : ''}</div></div>`;
+    <div class="c kicker">Highest ${esc(measure)}${a.labelCol ? ' — ' + esc(best[a.labelCol]) : ''}</div></div>`;
 }
 
 function renderChart(rows, a) {
-  if (!a.valueCol || !a.labelCol || rows.length < 2) return '';
-  const sorted = [...rows].sort((x, y) => Number(y[a.valueCol]) - Number(x[a.valueCol]));
+  if (!a.valueCol || !a.labelCol || a.isDetail) return '';
+  if (a.repeatedLabels && !a.additive) return '';  // can't sum averages/rates
+  let data = rows, measure = a.valueCol;
+  if (a.repeatedLabels) {
+    data = rollupByLabel(rows, a);
+    measure = 'total ' + a.valueCol;
+  }
+  if (data.length < 2) return '';
+  const sorted = [...data].sort((x, y) => Number(y[a.valueCol]) - Number(x[a.valueCol]));
   const shown = sorted.slice(0, 12);
   const max = Math.max(...sorted.map(r => Math.abs(Number(r[a.valueCol])))) || 1;
   const bars = shown.map(r => {
@@ -448,13 +477,14 @@ function renderChart(rows, a) {
       <div class="bar-value">${fmt(v)}</div></div>`;
   }).join('');
   const more = sorted.length > shown.length ? ` (top ${shown.length} of ${sorted.length})` : '';
-  return `<figure class="chart"><figcaption>${esc(a.valueCol)} by ${esc(a.labelCol)}${more}</figcaption>${bars}</figure>`;
+  return `<figure class="chart"><figcaption>${esc(measure)} by ${esc(a.labelCol)}${more}</figcaption>${bars}</figure>`;
 }
 
 function renderTable(rows, a) {
   if (!rows || !rows.length) return '<p class="lede">Query returned no rows.</p>';
-  // Order rows by the detected measure, descending — matches the chart.
-  const ordered = a.valueCol
+  // Summaries are sorted by the measure (matches the chart); row-level listings
+  // keep whatever order the query returned them in.
+  const ordered = (a.valueCol && !a.isDetail)
     ? [...rows].sort((x, y) => Number(y[a.valueCol]) - Number(x[a.valueCol]))
     : rows;
   const head = a.cols.map(c => `<th>${esc(c)}</th>`).join('');
