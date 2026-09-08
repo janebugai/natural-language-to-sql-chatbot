@@ -446,8 +446,12 @@ function renderChart(rows, a) {
 
 function renderTable(rows, a) {
   if (!rows || !rows.length) return '<p class="lede">Query returned no rows.</p>';
+  // Order rows by the detected measure, descending — matches the chart.
+  const ordered = a.valueCol
+    ? [...rows].sort((x, y) => Number(y[a.valueCol]) - Number(x[a.valueCol]))
+    : rows;
   const head = a.cols.map(c => `<th>${esc(c)}</th>`).join('');
-  const body = rows.map(r => `<tr>${a.cols.map(c => `<td>${fmt(r[c])}</td>`).join('')}</tr>`).join('');
+  const body = ordered.map(r => `<tr>${a.cols.map(c => `<td>${fmt(r[c])}</td>`).join('')}</tr>`).join('');
   return `<div class="table-wrap"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
