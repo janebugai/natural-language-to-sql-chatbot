@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.db import get_schema_description, run_query, UnsafeQueryError
-from app.llm import generate_sql, summarize_results
+from app.llm import generate_sql, repair_sql, summarize_results
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -69,8 +69,18 @@ def ask(payload: Question):
             status_code=400,
             detail=f"Generated query was rejected for safety reasons: {e}. SQL was: {sql}",
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Query execution failed: {e}. SQL was: {sql}")
+    except Exception as first_error:
+        # One self-correction attempt: hand the model its query + the error.
+        try:
+            sql = repair_sql(payload.question, schema_text, sql, str(first_error))
+            rows = run_query(sql)
+        except UnsafeQueryError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Generated query was rejected for safety reasons: {e}. SQL was: {sql}",
+            )
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Query execution failed: {e}. SQL was: {sql}")
 
     summary = None
     if payload.include_summary:

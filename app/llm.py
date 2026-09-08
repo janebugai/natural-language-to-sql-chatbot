@@ -22,6 +22,12 @@ Rules:
 - Only output the SQL query, nothing else. No explanation, no markdown fences.
 - Only use SELECT statements — never modify data.
 - Use only the tables and columns listed in the schema.
+- When a query joins more than one table, give every table a short alias and
+  qualify EVERY column reference with it (in SELECT, JOIN, WHERE, GROUP BY,
+  ORDER BY, and HAVING). Column names like product_id, customer_id and
+  order_id appear in several tables and are ambiguous unqualified.
+- When the question asks about an entity (product, customer, category,
+  carrier...), return its human-readable name column, not just its id.
 - Make text filters case-insensitive: compare with LOWER(column) = LOWER('value'),
   or use LIKE with a COLLATE NOCASE clause. Never rely on an exact-case match for
   values a user typed (names, cities, statuses, categories, etc.).
@@ -56,6 +62,28 @@ def generate_sql(question: str, schema: str) -> str:
     )
     raw = response.choices[0].message.content or ""
     return _extract_sql(raw)
+
+
+def repair_sql(question: str, schema: str, bad_sql: str, error: str) -> str:
+    """Give the model its failed query plus the DB error and ask for one fix."""
+    if not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY environment variable is not set.")
+
+    response = client.chat.completions.create(
+        model=SQL_MODEL,
+        temperature=0,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"### Schema\n{schema}\n\n### Question\n{question}\n\n### SQL Query"},
+            {"role": "assistant", "content": bad_sql},
+            {"role": "user", "content": (
+                f"That query failed with this database error:\n{error}\n\n"
+                "Return a corrected single SELECT query. Alias every table and "
+                "qualify every column reference. Output only the SQL."
+            )},
+        ],
+    )
+    return _extract_sql(response.choices[0].message.content or "")
 
 
 def summarize_results(question: str, rows: list[dict]) -> str:
