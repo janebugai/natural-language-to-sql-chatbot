@@ -1,0 +1,19 @@
+# Secrets
+.env
+
+# Generated demo database (recreate with: python create_demo_db.py)
+demo.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

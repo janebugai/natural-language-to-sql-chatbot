@@ -1,0 +1,132 @@
+# NL-to-SQL Chatbot
+
+Ask questions in plain English, get them turned into SQL, run safely against
+a database, and get results back — with a plain-English summary, a headline
+figure, and a chart. Ships with a small web UI and a JSON API.
+
+## How it works
+
+```
+question --> [schema introspection] --> [LLM generates SQL]
+         --> [safety validation: SELECT-only, no stacked statements]
+         --> [execute against DB, capped rows] --> results + summary
+```
+
+## Setup
+
+### 1. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Add your OpenAI API key
+
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` and set `OPENAI_API_KEY=sk-...` (get a key at
+https://platform.openai.com/api-keys). The app loads `.env` automatically on
+startup via `python-dotenv`; a plain `export OPENAI_API_KEY=...` works too.
+
+Optional: set `SQL_MODEL` / `SUMMARY_MODEL` in `.env` to use a different model
+(default `gpt-4o-mini`).
+
+### 3. Create the demo database
+
+```bash
+python create_demo_db.py
+```
+
+This writes `demo.db` — a small customers / products / orders / order_items
+schema with ~120 sample orders — so there's something to query immediately.
+
+### 4. Run
+
+```bash
+uvicorn app.main:app --reload
+```
+
+- **Web UI:** http://localhost:8000/
+- **Interactive API docs:** http://localhost:8000/docs
+
+## Web UI
+
+A two-pane workspace: the conversation on the left, the answer on the right.
+Each answer shows the model's summary, a large headline figure, a sorted bar
+chart, the full result table, and the generated SQL (collapsed). A
+**Result / Data model** toggle lets you view the database schema at any time
+without losing your place.
+
+## API
+
+| Method | Path      | Purpose                                  |
+|--------|-----------|------------------------------------------|
+| GET    | `/`       | Web UI                                   |
+| GET    | `/docs`   | Swagger UI                               |
+| GET    | `/schema` | Current database schema (text)           |
+| GET    | `/health` | Liveness check                           |
+| POST   | `/ask`    | Natural-language question -> SQL + rows  |
+
+```bash
+curl -X POST http://localhost:8000/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Which 5 customers spent the most money on completed orders?"}'
+```
+
+```json
+{
+  "question": "Which 5 customers spent the most money on completed orders?",
+  "sql": "SELECT ...",
+  "rows": [...],
+  "row_count": 5,
+  "summary": "..."
+}
+```
+
+Set `"include_summary": false` in the request to skip the summary call (roughly
+halves the OpenAI cost per request).
+
+## Swapping in your own database
+
+Everything in `app/db.py` is written for SQLite, but the pattern generalizes:
+
+- **Postgres**: use `psycopg2` / `asyncpg` for the connection; introspect via
+  `information_schema.columns` and `information_schema.table_constraints`
+  instead of `PRAGMA table_info` / `PRAGMA foreign_key_list`.
+- **MySQL**: similar — `information_schema` again, with `pymysql` or
+  `mysql-connector-python`.
+
+The safety validation (`validate_sql`), row capping, and FastAPI layer don't
+need to change.
+
+## Safety notes
+
+This is a starting point, not a production-hardened system. Before pointing it
+at a real database, also consider:
+
+- **Least-privilege DB user**: connect with a role that only has `SELECT`
+  grants — don't rely on the regex validator as your only defense.
+- **Row-level security / column masking** if some data shouldn't be queryable
+  by all users.
+- **Query cost limits**: a syntactically safe `SELECT` can still be a full
+  table scan. Consider `EXPLAIN`-ing first or setting a statement timeout.
+- **Rate limiting** on the `/ask` endpoint.
+- **Logging generated SQL** for auditing.
+
+## Model quality tips
+
+- Keep the schema description concise and accurate — avoid dumping unrelated
+  tables into the prompt.
+- If generated SQL is subtly wrong (wrong join, wrong aggregation), add a few
+  example question -> SQL pairs to the system prompt (few-shot).
+- For a bigger schema, retrieve only the relevant tables per question (schema
+  RAG) instead of sending the whole schema every time.
+- `gpt-4o-mini` is a solid default; upgrade to `gpt-4o` for complex multi-join
+  queries if you see accuracy issues.
+
+## Cost note
+
+Every `/ask` call makes 1–2 OpenAI API calls (SQL generation, plus an optional
+summary). Track usage on the OpenAI dashboard.
