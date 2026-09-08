@@ -1,16 +1,72 @@
-# NL-to-SQL Chatbot
+# Natural Language to SQL Chatbot
 
-Ask questions in plain English, get them turned into SQL, run safely against
-a database, and get results back — with a plain-English summary, a headline
-figure, and a chart. Ships with a small web UI and a JSON API.
+This chatbot lets a non-technical user query the database of an imaginary
+store in plain English. A user asks a question ("Which products sold the most
+last month?"); an LLM writes the SQL, the system checks it is safe, runs it,
+and returns a written summary, the key figure, a chart, and the data table,
+with the query shown for transparency.
+
+It exists to cut the volume of routine data requests to the analytics team
+and give stakeholders faster self-serve reporting. It only runs read-only
+`SELECT` queries and caps rows returned. Available as a web app and a JSON
+API, it currently runs on a demo database.
 
 ## How it works
 
+A question travels through five steps before an answer comes back:
+
+```mermaid
+flowchart LR
+    Q(["Question in plain English"]) --> S["Read the database schema"]
+    S --> G["LLM writes a SQL query"]
+    G --> V{"Safe? (read-only SELECT)"}
+    V -- no --> X["Rejected — query shown"]
+    V -- yes --> R["Run the query<br/>(read-only, row-capped)"]
+    R --> A(["Answer: summary + number + chart + table"])
 ```
-question --> [schema introspection] --> [LLM generates SQL]
-         --> [safety validation: SELECT-only, no stacked statements]
-         --> [execute against DB, capped rows] --> results + summary
-```
+
+1. **Read the schema** — list the tables, columns, and relationships so the
+   model knows what it can query.
+2. **Write the SQL** — the LLM turns the question plus schema into a single
+   `SELECT`.
+3. **Safety check** — reject anything that isn't a read-only `SELECT` (no
+   `INSERT`/`UPDATE`/`DELETE`/`DROP`, no stacked statements).
+4. **Run it** — execute against the database with a short timeout and a row
+   cap.
+5. **Answer** — return the rows, a written summary, the headline figure, and
+   a chart; the generated SQL is always included.
+
+The sections below break down the same flow at the code level.
+
+### Component overview
+
+| Layer | File | Responsibility |
+|-------|------|----------------|
+| HTTP API | `app/main.py` | FastAPI routes (`/`, `/ask`, `/schema`, `/health`), request/response models, error mapping, CORS |
+| LLM | `app/llm.py` | `generate_sql()` and `summarize_results()`; model IDs from `SQL_MODEL` / `SUMMARY_MODEL`; prompt rules; response cleanup |
+| Data | `app/db.py` | schema introspection, `validate_sql()` (regex allow/deny list), `run_query()` with timeout + row cap |
+| Frontend | `app/static/index.html` | single-file UI: chat history, schema view, and rendering of summary / callout / chart / table |
+
+### Request lifecycle (`POST /ask`)
+
+1. **Introspect** — read every table, column, and foreign key from the DB and
+   render a compact text schema for the prompt.
+2. **Generate** — send schema + question to the LLM at `temperature=0`; the
+   system prompt constrains it to a single schema-bound `SELECT` and requires
+   case-insensitive text comparisons. The raw reply is stripped of markdown
+   fences and any surrounding prose.
+3. **Validate** — `validate_sql()` rejects anything that isn't a lone
+   `SELECT` / `WITH`, contains a second statement, or matches the forbidden-
+   keyword list (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `CREATE`,
+   `ATTACH`, `PRAGMA`, …). Rejection → HTTP 400 with the offending SQL.
+4. **Execute** — run against SQLite with a 5-second timeout and
+   `fetchmany(200)` so a broad query can't return unbounded rows.
+5. **Summarize** — if `include_summary` is true (default), a second LLM call
+   turns the rows into 1–2 sentences. This step is best-effort: any failure
+   leaves `summary` null rather than failing the request.
+6. **Respond** — return `question`, `sql`, `rows`, `row_count`, and
+   `summary`. The web UI derives the headline figure, the descending-sorted
+   bar chart, and the results table from this payload on the client.
 
 ## Setup
 

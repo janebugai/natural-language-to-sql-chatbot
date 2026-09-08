@@ -1,6 +1,6 @@
 """
 Creates a small demo SQLite database (demo.db) with a simple sales schema
-so the NL-to-SQL chatbot has something to query out of the box.
+so the natural-language-to-SQL chatbot has something to query out of the box.
 
 Run: python create_demo_db.py
 """
