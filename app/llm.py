@@ -16,7 +16,7 @@ SQL_MODEL = os.environ.get("SQL_MODEL", "gpt-4o-mini")
 SUMMARY_MODEL = os.environ.get("SUMMARY_MODEL", "gpt-4o-mini")
 
 SYSTEM_PROMPT = """You are a SQL expert. Given a database schema and a question,
-write a single SQLite SELECT query that answers the question.
+write a single DuckDB SQL SELECT query that answers the question.
 
 Rules:
 - Only output the SQL query, nothing else. No explanation, no markdown fences.
@@ -29,8 +29,8 @@ Rules:
 - When the question asks about an entity (product, customer, category,
   carrier...), return its human-readable name column, not just its id.
 - Make text filters case-insensitive: compare with LOWER(column) = LOWER('value'),
-  or use LIKE with a COLLATE NOCASE clause. Never rely on an exact-case match for
-  values a user typed (names, cities, statuses, categories, etc.).
+  or use ILIKE. Never rely on an exact-case match for values a user typed
+  (names, cities, statuses, categories, etc.).
 - If the question cannot be answered with the given schema, output:
   SELECT 'Cannot answer with available schema' AS error
 """

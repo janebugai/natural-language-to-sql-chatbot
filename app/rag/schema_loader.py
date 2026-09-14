@@ -7,10 +7,10 @@ Nothing here assumes a particular domain's table or column names, so the
 same loader works unchanged for any schema registered in
 app/metadata/schemas.yaml.
 
-Implemented against SQLite today, matching the rest of the app (see
-app/db.py). Postgres support can be added later as a second class
-implementing the same SchemaLoader interface — retriever.py,
-schema_graph.py, etc. would not need to change.
+Two backends today — SQLite (legacy) and DuckDB (what the app actually runs
+on, see app/db.py) — both implementing the same SchemaLoader interface.
+Postgres could be added later the same way; nothing downstream (retriever,
+schema_graph, context_builder) would need to change.
 """
 from __future__ import annotations
 
@@ -18,7 +18,9 @@ import sqlite3
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from app.rag.models import ColumnMetadata, ForeignKey, TableMetadata
+import duckdb
+
+from app.rag.models import ColumnMetadata, ForeignKey, SchemaRegistryEntry, TableMetadata
 
 
 class SchemaLoader(ABC):
@@ -94,3 +96,116 @@ class SQLiteSchemaLoader(SchemaLoader):
             primary_keys=primary_keys,
             foreign_keys=foreign_keys,
         )
+
+
+class DuckDBSchemaLoader(SchemaLoader):
+    """
+    Introspects a DuckDB database file via its duckdb_columns()/
+    duckdb_constraints() metadata functions (DuckDB's equivalent of
+    SQLite's PRAGMAs / Postgres's information_schema).
+
+    Tables matching `hidden_table_pattern` (a SQL LIKE pattern) are excluded
+    — this app's dbt project leaves its raw seed tables (raw_categories,
+    raw_orders, ...) in the same database as the marts it builds, and those
+    are a build detail, not part of the schema the app or an LLM should see.
+    """
+
+    def __init__(self, database_path: str | Path, hidden_table_pattern: str = "raw_%"):
+        self.database_path = Path(database_path)
+        self.hidden_table_pattern = hidden_table_pattern
+
+    def load_tables(self, database_schema: str = "main") -> list[TableMetadata]:
+        if not self.database_path.exists():
+            raise FileNotFoundError(f"DuckDB database not found: {self.database_path}")
+
+        conn = duckdb.connect(str(self.database_path), read_only=True)
+        try:
+            table_names = [
+                row[0]
+                for row in conn.execute(
+                    "select table_name from duckdb_tables() "
+                    "where schema_name = ? and not internal and table_name not like ? "
+                    "order by table_name",
+                    [database_schema, self.hidden_table_pattern],
+                ).fetchall()
+            ]
+            return [self._load_table(conn, database_schema, name) for name in table_names]
+        finally:
+            conn.close()
+
+    def _load_table(
+        self, conn: duckdb.DuckDBPyConnection, database_schema: str, table_name: str
+    ) -> TableMetadata:
+        col_rows = conn.execute(
+            "select column_name, data_type, is_nullable from duckdb_columns() "
+            "where schema_name = ? and table_name = ? order by column_index",
+            [database_schema, table_name],
+        ).fetchall()
+
+        constraint_rows = conn.execute(
+            "select constraint_type, constraint_column_names, referenced_table, "
+            "referenced_column_names from duckdb_constraints() "
+            "where schema_name = ? and table_name = ? "
+            "and constraint_type in ('PRIMARY KEY', 'FOREIGN KEY')",
+            [database_schema, table_name],
+        ).fetchall()
+
+        primary_keys: list[str] = []
+        foreign_keys: list[ForeignKey] = []
+        for constraint_type, column_names, ref_table, ref_columns in constraint_rows:
+            if constraint_type == "PRIMARY KEY":
+                primary_keys.extend(column_names)
+            elif constraint_type == "FOREIGN KEY":
+                # DuckDB supports composite FKs; this app only has
+                # single-column ones, so pair them up positionally.
+                for column_name, ref_column in zip(column_names, ref_columns):
+                    foreign_keys.append(
+                        ForeignKey(
+                            column=column_name,
+                            references_table=ref_table,
+                            references_column=ref_column,
+                            references_schema=database_schema,
+                        )
+                    )
+
+        primary_key_set = set(primary_keys)
+        fk_columns = {fk.column for fk in foreign_keys}
+
+        columns = [
+            ColumnMetadata(
+                name=name,
+                data_type=data_type,
+                nullable=(is_nullable == "YES" if isinstance(is_nullable, str) else bool(is_nullable)),
+                is_primary_key=name in primary_key_set,
+                is_foreign_key=name in fk_columns,
+            )
+            for name, data_type, is_nullable in col_rows
+        ]
+
+        return TableMetadata(
+            schema_name=database_schema,
+            table_name=table_name,
+            columns=columns,
+            primary_keys=primary_keys,
+            foreign_keys=foreign_keys,
+        )
+
+
+_LOADER_FACTORIES = {
+    "sqlite": SQLiteSchemaLoader,
+    "duckdb": DuckDBSchemaLoader,
+}
+
+
+def build_schema_loader(entry: SchemaRegistryEntry, resolved_db_path: str | Path) -> SchemaLoader:
+    """
+    Picks the right SchemaLoader for a registry entry's backend. This is the
+    only place that dispatches on `backend` — nothing else should need an
+    if/else on it.
+    """
+    try:
+        loader_cls = _LOADER_FACTORIES[entry.backend]
+    except KeyError:
+        known = ", ".join(sorted(_LOADER_FACTORIES))
+        raise ValueError(f"Unknown backend '{entry.backend}' for domain '{entry.name}'. Supported: {known}.")
+    return loader_cls(resolved_db_path)

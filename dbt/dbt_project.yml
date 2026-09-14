@@ -1,0 +1,27 @@
+# dbt project for the demo e-commerce dataset. Builds:
+#   seeds (raw CSVs) -> staging (typed/cleaned) -> marts (the tables the app queries)
+#
+# Run from the repo root:
+#   python scripts/generate_seed_data.py
+#   dbt seed --project-dir dbt --profiles-dir dbt
+#   dbt run  --project-dir dbt --profiles-dir dbt
+#   dbt test --project-dir dbt --profiles-dir dbt   (optional, but recommended)
+name: sql_chatbot
+version: "1.0.0"
+config-version: 2
+
+profile: sql_chatbot
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+models:
+  sql_chatbot:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

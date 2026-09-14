@@ -48,7 +48,8 @@ The sections below break down the same flow at the code level.
 |-------|------|----------------|
 | HTTP API | `app/main.py` | FastAPI routes (`/`, `/ask`, `/schema`, `/health`), request/response models, error mapping, CORS |
 | LLM | `app/llm.py` | `generate_sql()` and `summarize_results()`; model IDs from `SQL_MODEL` / `SUMMARY_MODEL`; prompt rules; response cleanup |
-| Data | `app/db.py` | schema introspection, `validate_sql()` (regex allow/deny list), `run_query()` with timeout + row cap |
+| Data | `app/db.py` | schema introspection, `validate_sql()` (regex allow/deny list), `run_query()` with timeout + row cap, against DuckDB |
+| Data build | `dbt/`, `scripts/generate_seed_data.py` | dbt project that builds the demo dataset (`demo.duckdb`): seed CSVs -> typed staging models -> mart tables with real PK/FK constraints and a few computed columns (margin, lifetime revenue, delivery time) |
 | Frontend | `app/static/index.html` | single-file UI: chat history, schema view, and rendering of summary / callout / chart / table |
 
 ### Request lifecycle (`POST /ask`)
@@ -63,8 +64,9 @@ The sections below break down the same flow at the code level.
    `SELECT` / `WITH`, contains a second statement, or matches the forbidden-
    keyword list (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `CREATE`,
    `ATTACH`, `PRAGMA`, …). Rejection → HTTP 400 with the offending SQL.
-4. **Execute** — run against SQLite with a 5-second timeout and
-   `fetchmany(200)` so a broad query can't return unbounded rows.
+4. **Execute** — run against DuckDB on a read-only connection, cancelled if
+   it runs past a 5-second timeout, and `fetchmany(200)` so a broad query
+   can't return unbounded rows.
 5. **Summarize** — if `include_summary` is true (default), a second LLM call
    turns the rows into 1–2 sentences. This step is best-effort: any failure
    leaves `summary` null rather than failing the request.
@@ -93,18 +95,24 @@ startup via `python-dotenv`; a plain `export OPENAI_API_KEY=...` works too.
 Optional: set `SQL_MODEL` / `SUMMARY_MODEL` in `.env` to use a different model
 (default `gpt-4o-mini`).
 
-### 3. Create the demo database
+### 3. Build the demo database
 
 ```bash
-python create_demo_db.py
+pip install -r requirements-dbt.txt   # dbt-core + dbt-duckdb; build-time only
+python scripts/generate_seed_data.py
+dbt seed --project-dir dbt --profiles-dir dbt
+dbt run  --project-dir dbt --profiles-dir dbt
 ```
 
-This writes `demo.db` — an eight-table online-store schema (`categories`,
+This builds `demo.duckdb`: an eight-table online-store schema (`categories`,
 `customers`, `products`, `orders`, `order_items`, `reviews`, `shipments`,
-`returns`) with ~300 customers and ~3,500 orders. Every date is anchored to
-today and order volume is seasonally weighted, so time-based questions
-("revenue last month", "return rate this quarter") always hit real data.
-Re-run it any time to refresh; the data shape is deterministic (fixed seed).
+`returns`) with ~300 customers and ~3,500 orders, plus a few dbt-computed
+columns (product margin, customer lifetime revenue, shipment delivery time).
+Every date is anchored to today and order volume is seasonally weighted, so
+time-based questions ("revenue last month", "return rate this quarter")
+always hit real data. Re-run it any time to refresh; the data shape is
+deterministic (fixed seed). `dbt test --project-dir dbt --profiles-dir dbt`
+runs the schema's data-quality tests (uniqueness, not-null, FK relationships).
 
 ### 4. Run
 
@@ -168,7 +176,7 @@ What the Blueprint runs:
 
 | Step  | Command |
 |-------|---------|
-| Build | `pip install -r requirements.txt && python create_demo_db.py` |
+| Build | `pip install -r requirements.txt -r requirements-dbt.txt && python scripts/generate_seed_data.py && dbt seed --project-dir dbt --profiles-dir dbt && dbt run --project-dir dbt --profiles-dir dbt` |
 | Start | `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT --timeout 120` |
 
 Notes:
@@ -182,20 +190,27 @@ Notes:
   keep using `uvicorn app.main:app --reload` for local development.
 - `$PORT` is injected by Render; bind to it, not a fixed port.
 - `--timeout 120` gives the OpenAI round-trip room before a worker is killed.
-- `demo.db` is rebuilt on every deploy (Render's disk is ephemeral). That's
-  fine — the app only reads from it. To ship your own data instead, remove the
-  `create_demo_db.py` step and point `app/db.py` at a managed database.
+- `demo.duckdb` is rebuilt on every deploy (Render's disk is ephemeral).
+  That's fine — the app only opens it read-only. To ship your own data
+  instead, replace the dbt project's seeds/models with your own and point
+  `app/db.py` at wherever the resulting file (or a managed database) lives.
+- `dbt-core`/`dbt-duckdb` are only needed for the build step
+  (`requirements-dbt.txt`) — the running app itself only imports the
+  lightweight `duckdb` client (`requirements.txt`), not dbt.
 - Prefer plain uvicorn? Swap the start command for
   `uvicorn app.main:app --host 0.0.0.0 --port $PORT` and drop `gunicorn` from
   `requirements.txt`.
 
 ## Swapping in your own database
 
-Everything in `app/db.py` is written for SQLite, but the pattern generalizes:
+`app/db.py` is written for DuckDB, but the pattern generalizes — and
+`app/rag/schema_loader.py` already formalizes it as a `SchemaLoader`
+interface with two implementations (DuckDB, and a legacy SQLite one) that
+the rest of the RAG layer doesn't care about the difference between:
 
 - **Postgres**: use `psycopg2` / `asyncpg` for the connection; introspect via
   `information_schema.columns` and `information_schema.table_constraints`
-  instead of `PRAGMA table_info` / `PRAGMA foreign_key_list`.
+  instead of `duckdb_columns()` / `duckdb_constraints()`.
 - **MySQL**: similar — `information_schema` again, with `pymysql` or
   `mysql-connector-python`.
 
