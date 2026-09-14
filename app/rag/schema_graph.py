@@ -6,7 +6,7 @@ paths -- e.g. if retrieval picks categories and returns, but the only path
 between them is categories -> products -> order_items -> returns, expand()
 adds products and order_items as bridge tables.
 
-The graph is built purely from what schema_loader discovered; nothing here
+The graph is built purely from what physical_schema.py discovered; nothing here
 invents a relationship that isn't a real foreign key, and nothing here
 knows a table or column by name -- it only ever sees whatever
 TableMetadata objects it's handed.
@@ -109,7 +109,7 @@ class ExpansionResult:
 
 
 def build_graph(tables: dict[str, TableMetadata]) -> SchemaGraph:
-    """Builds the FK graph purely from what schema_loader discovered -- no hardcoded relationships."""
+    """Builds the FK graph purely from what physical_schema.py discovered -- no hardcoded relationships."""
     graph = SchemaGraph()
     for table in tables.values():
         graph.adjacency.setdefault(table.table_name, set())
@@ -117,7 +117,7 @@ def build_graph(tables: dict[str, TableMetadata]) -> SchemaGraph:
     for table in tables.values():
         for fk in table.foreign_keys:
             if fk.references_table not in tables:
-                # FK points at a table schema_loader didn't load (e.g. a
+                # FK points at a table physical_schema.py didn't load (e.g. a
                 # cross-domain reference) -- skip rather than add a
                 # dangling node nothing downstream can describe.
                 continue

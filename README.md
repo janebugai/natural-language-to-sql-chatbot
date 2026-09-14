@@ -204,7 +204,7 @@ Notes:
 ## Swapping in your own database
 
 `app/db.py` is written for DuckDB, but the pattern generalizes — and
-`app/rag/schema_loader.py` already formalizes it as a `SchemaLoader`
+`app/rag/physical_schema.py` already formalizes it as a `SchemaLoader`
 interface with two implementations (DuckDB, and a legacy SQLite one) that
 the rest of the RAG layer doesn't care about the difference between:
 
