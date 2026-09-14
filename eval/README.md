@@ -43,7 +43,13 @@ answer with available schema' AS error`) instead of fabricating a result:
 - **RAG's one execution win (q21)** is a real, inspectable case: baseline's
   full-schema context led to a query with a genuine `GROUP BY` bug that
   repair didn't fix; RAG's context (which includes the `revenue` metric's
-  explicit guidance) led to a simpler, correct query first try.
+  explicit guidance) led to a simpler, correct query first try. The
+  specific bug (a non-aggregated column missing from `GROUP BY`) is now
+  addressed in `app/llm.py`'s prompt and verified not to recur across ~19
+  live retests — though this exact question remains individually flaky for
+  a related reason (an occasional nested-aggregate expression); see the
+  commit history on `app/llm.py` for the full investigation. Numbers above
+  are from the original run and haven't been re-measured since.
 - **Recall 100%, precision 40%**: `RAG_TOP_K=4` sends 4 tables regardless
   of question complexity, so single-table questions land near 25%
   precision (1 needed of 4 sent). `top_k` was raised from 3 to fix a real
