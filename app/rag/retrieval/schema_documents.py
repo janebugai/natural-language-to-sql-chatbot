@@ -13,7 +13,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
-from app.rag.models import TableMetadata
+from app.rag.catalog.models import TableMetadata
 
 # Bump this if _render()'s output shape changes. That invalidates every
 # cached embedding, since the *document* a table produces would differ even

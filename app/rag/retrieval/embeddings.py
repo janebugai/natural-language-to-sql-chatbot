@@ -23,12 +23,12 @@ import numpy as np
 from openai import OpenAI
 
 from app.rag import config
-from app.rag.schema_documents import SchemaDocument
+from app.rag.retrieval.schema_documents import SchemaDocument
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_EMBEDDING_MODEL = config.EMBEDDING_MODEL
-CACHE_DIR = Path(__file__).resolve().parent / "cache"
+CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"  # app/rag/cache/ -- stable regardless of internal reorganization
 
 
 class EmbeddingProvider(ABC):

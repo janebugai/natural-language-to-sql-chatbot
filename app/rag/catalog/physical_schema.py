@@ -20,7 +20,7 @@ from pathlib import Path
 
 import duckdb
 
-from app.rag.models import ColumnMetadata, ForeignKey, SchemaRegistryEntry, TableMetadata
+from app.rag.catalog.models import ColumnMetadata, ForeignKey, SchemaRegistryEntry, TableMetadata
 
 
 class SchemaLoader(ABC):

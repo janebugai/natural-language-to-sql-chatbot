@@ -28,7 +28,7 @@ import logging
 from collections import deque
 from dataclasses import dataclass, field
 
-from app.rag.models import TableMetadata
+from app.rag.catalog.models import TableMetadata
 
 logger = logging.getLogger(__name__)
 

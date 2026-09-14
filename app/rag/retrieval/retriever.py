@@ -14,8 +14,8 @@ import re
 from dataclasses import dataclass, field
 
 from app.rag import config
-from app.rag.embeddings import EmbeddedDocument, EmbeddingProvider, OpenAIEmbeddingProvider, cosine_similarity
-from app.rag.models import TableMetadata
+from app.rag.catalog.models import TableMetadata
+from app.rag.retrieval.embeddings import EmbeddedDocument, EmbeddingProvider, OpenAIEmbeddingProvider, cosine_similarity
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
 

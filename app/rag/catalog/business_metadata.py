@@ -24,11 +24,11 @@ from pathlib import Path
 
 import yaml
 
-from app.rag.models import DomainMetadata, MetricDefinition, SchemaRegistryEntry, TableMetadata
+from app.rag.catalog.models import DomainMetadata, MetricDefinition, SchemaRegistryEntry, TableMetadata
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = Path(__file__).resolve().parent.parent  # .../app
+APP_DIR = Path(__file__).resolve().parent.parent.parent  # .../app (this file is app/rag/catalog/business_metadata.py)
 REPO_ROOT = APP_DIR.parent
 DEFAULT_REGISTRY_FILE = APP_DIR / "metadata" / "schemas.yaml"
 
