@@ -5,4 +5,5 @@ pydantic==2.13.4
 openai==2.40.0
 python-dotenv==1.2.2
 PyYAML==6.0.2
+numpy==2.2.6
 duckdb==1.5.3

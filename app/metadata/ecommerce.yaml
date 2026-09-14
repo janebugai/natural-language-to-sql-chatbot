@@ -1,9 +1,13 @@
-# Business metadata for the "ecommerce" domain (demo.db).
+# Business metadata for the "ecommerce" domain (demo.duckdb, built by the
+# dbt project in dbt/).
 #
 # This file enriches the physical schema (which the app discovers on its
 # own via app/rag/schema_loader.py) with descriptions and business
 # vocabulary. It intentionally never redeclares physical facts like column
-# types or foreign keys — the database already knows those.
+# types or foreign keys — the database already knows those. A few columns
+# below (margin_pct, lifetime_order_count, lifetime_revenue, net_amount,
+# delivery_days) are themselves computed by dbt models rather than raw
+# input data — see dbt/models/marts/_marts.yml for exactly how.
 #
 # After editing this file, run:
 #   python -m app.rag.refresh --schema ecommerce
@@ -21,7 +25,11 @@ domain_business_terms:
 
 metrics:
   revenue:
-    description: Total value of goods sold, before shipping and tax.
+    description: >
+      Total value of goods sold, before shipping and tax. Sum
+      order_items.net_amount (already unit_price * quantity - discount);
+      for a single customer's lifetime total, use
+      customers.lifetime_revenue directly instead of re-summing.
     synonyms: [sales, GMV, order value, purchase value]
   return_rate:
     description: Share of ordered line items that were later returned.
@@ -67,6 +75,16 @@ tables:
       signup_date:
         description: Date the customer created their account.
         business_terms: [registration date, join date]
+      lifetime_order_count:
+        description: Total number of orders this customer has ever placed (pre-aggregated from orders).
+        business_terms: [order count, number of orders]
+      lifetime_revenue:
+        description: >
+          Total revenue from this customer across all their orders
+          (pre-aggregated from order_items). This is already a total — do
+          not also sum order_items when using this column, or revenue will
+          be double counted.
+        business_terms: [customer lifetime value, ltv, total spend]
 
   products:
     description: Sellable catalog items. One row per product.
@@ -87,6 +105,12 @@ tables:
       cost:
         description: Cost to the business per unit.
         business_terms: [cogs, unit cost]
+      margin_pct:
+        description: >
+          Actual gross margin this product is realizing, computed as
+          (unit_price - cost) / unit_price. Compare against
+          categories.target_margin to see which products are under-performing.
+        business_terms: [margin, gross margin, profit margin]
       launch_date:
         description: Date the product was first offered for sale.
       is_active:
@@ -140,6 +164,11 @@ tables:
         business_terms: [sale price]
       discount:
         description: Discount amount applied to this line.
+      net_amount:
+        description: >
+          unit_price * quantity - discount. This is the figure to SUM for
+          revenue/sales questions.
+        business_terms: [revenue, sales, line revenue, net revenue]
 
   reviews:
     description: Customer product reviews. One row per review.
@@ -170,6 +199,12 @@ tables:
         description: Date the shipment left the warehouse.
       delivered_date:
         description: Date the shipment was delivered, if delivered.
+      delivery_days:
+        description: >
+          Days from shipped_date to delivered_date. Null if not yet
+          delivered (still in transit or not yet shipped) — this is already
+          computed, no need to date_diff shipped_date/delivered_date yourself.
+        business_terms: [delivery time, shipping time, transit time]
       status:
         description: Shipment status (label_created, in_transit, delivered).
 
