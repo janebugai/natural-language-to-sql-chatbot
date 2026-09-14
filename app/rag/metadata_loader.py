@@ -84,7 +84,7 @@ def merge_metadata(
     metrics = {
         metric_name: MetricDefinition(
             name=metric_name,
-            description=(metric_def or {}).get("description"),
+            description=_clean_text((metric_def or {}).get("description")),
             synonyms=list((metric_def or {}).get("synonyms") or []),
         )
         for metric_name, metric_def in (business.get("metrics") or {}).items()
@@ -94,14 +94,25 @@ def merge_metadata(
         name=domain_name,
         database_schema=database_schema,
         tables=physical_by_name,
-        description=business.get("description"),
+        description=_clean_text(business.get("description")),
         business_terms=list(business.get("domain_business_terms") or []),
         metrics=metrics,
     )
 
 
+def _clean_text(value: str | None) -> str | None:
+    """
+    Collapses a YAML folded (">") scalar back to one line and drops the
+    trailing newline block-scalar style adds, so descriptions never carry
+    stray whitespace into rendered documents or prompts.
+    """
+    if value is None:
+        return None
+    return " ".join(value.split())
+
+
 def _apply_table_metadata(table: TableMetadata, table_def: dict, domain_name: str) -> None:
-    table.description = table_def.get("description", table.description)
+    table.description = _clean_text(table_def.get("description")) or table.description
     table.business_terms = list(table_def.get("business_terms") or [])
 
     columns_by_name = {c.name: c for c in table.columns}
@@ -115,5 +126,5 @@ def _apply_table_metadata(table: TableMetadata, table_def: dict, domain_name: st
             )
             continue
         col_def = col_def or {}
-        column.description = col_def.get("description", column.description)
+        column.description = _clean_text(col_def.get("description")) or column.description
         column.business_terms = list(col_def.get("business_terms") or [])
