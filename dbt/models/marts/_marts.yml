@@ -2,7 +2,7 @@
 # columns/types against what's declared here, and emits real PRIMARY
 # KEY / FOREIGN KEY constraints in the CREATE TABLE DDL. That's what makes
 # them introspectable afterward via duckdb_constraints() -- which is what
-# app/rag/schema_graph.py's foreign-key graph is built from. Business
+# app/rag/retrieval/schema_graph.py's foreign-key graph is built from. Business
 # descriptions/synonyms live in app/metadata/ecommerce.yaml, not here; this
 # file only needs to be technically accurate.
 version: 2

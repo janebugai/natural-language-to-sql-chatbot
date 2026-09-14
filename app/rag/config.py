@@ -41,9 +41,16 @@ RAG_SEMANTIC_WEIGHT: float = _float_env("RAG_SEMANTIC_WEIGHT", 0.70)
 RAG_KEYWORD_WEIGHT: float = _float_env("RAG_KEYWORD_WEIGHT", 0.30)
 
 # Below this final_score, retrieval confidence is considered too low to
-# trust -- callers (app/main.py's fallback logic, once wired in) should
-# widen top_k or fall back to the full schema rather than proceed.
-RAG_MIN_SCORE: float = _float_env("RAG_MIN_SCORE", 0.20)
+# trust -- app/rag/pipeline.py falls back to the full schema rather than
+# proceed. Calibrated against real embeddings (text-embedding-3-small) on
+# a handful of real questions, not guessed: a genuinely out-of-scope
+# question scored ~0.05, while a *correct* retrieval with no keyword
+# overlap at all (semantic signal only) scored ~0.17 -- comfortably-worded
+# but keyword-free questions are common enough that 0.20 was cutting off
+# good retrievals, not just bad ones. This is a first-pass calibration
+# from a small sample; eval/ (once built) validates it properly across a
+# real question set.
+RAG_MIN_SCORE: float = _float_env("RAG_MIN_SCORE", 0.10)
 
 # Hard cap on how many tables ever reach the LLM's context, after
 # foreign-key graph expansion adds bridge tables on top of RAG_TOP_K. Stops
