@@ -2,7 +2,7 @@
 # dbt project in dbt/).
 #
 # This file enriches the physical schema (which the app discovers on its
-# own via app/rag/schema_loader.py) with descriptions and business
+# own via app/rag/catalog/physical_schema.py) with descriptions and business
 # vocabulary. It intentionally never redeclares physical facts like column
 # types or foreign keys — the database already knows those. A few columns
 # below (margin_pct, lifetime_order_count, lifetime_revenue, net_amount,

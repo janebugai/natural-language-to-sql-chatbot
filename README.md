@@ -50,29 +50,37 @@ The sections below break down the same flow at the code level.
 | LLM | `app/llm.py` | `generate_sql()` and `summarize_results()`; model IDs from `SQL_MODEL` / `SUMMARY_MODEL`; prompt rules; response cleanup |
 | Data | `app/db.py` | schema introspection, `validate_sql()` (regex allow/deny list), `run_query()` with timeout + row cap, against DuckDB |
 | Data build | `dbt/`, `scripts/generate_seed_data.py` | dbt project that builds the demo dataset (`demo.duckdb`): seed CSVs -> typed staging models -> mart tables with real PK/FK constraints and a few computed columns (margin, lifetime revenue, delivery time) |
+| Schema RAG | `app/rag/` | retrieves a relevant slice of the schema per question instead of sending the whole thing — see [Schema-aware RAG](#schema-aware-rag) below |
 | Frontend | `app/static/index.html` | single-file UI: chat history, schema view, and rendering of summary / callout / chart / table |
 
 ### Request lifecycle (`POST /ask`)
 
-1. **Introspect** — read every table, column, and foreign key from the DB and
-   render a compact text schema for the prompt.
-2. **Generate** — send schema + question to the LLM at `temperature=0`; the
-   system prompt constrains it to a single schema-bound `SELECT` and requires
-   case-insensitive text comparisons. The raw reply is stripped of markdown
-   fences and any surrounding prose.
+1. **Get schema context** — when `RAG_ENABLED` (default: on), retrieve the
+   relevant tables for the question (semantic + keyword ranking, then
+   foreign-key graph expansion) and render just those into a compact
+   schema context. Falls back to the full schema — the original,
+   always-on behavior — if RAG is disabled, retrieval's confidence is too
+   low, or anything in the RAG layer errors; see [Schema-aware RAG](#schema-aware-rag).
+2. **Generate** — send that schema context + question to the LLM at
+   `temperature=0`; the system prompt constrains it to a single
+   schema-bound `SELECT`, forbids inventing tables/columns, and requires
+   case-insensitive text comparisons. The raw reply is stripped of
+   markdown fences and any surrounding prose.
 3. **Validate** — `validate_sql()` rejects anything that isn't a lone
    `SELECT` / `WITH`, contains a second statement, or matches the forbidden-
    keyword list (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `CREATE`,
-   `ATTACH`, `PRAGMA`, …). Rejection → HTTP 400 with the offending SQL.
+   `ATTACH`, `COPY`, `INSTALL`, …). Rejection → HTTP 400 with the offending SQL.
 4. **Execute** — run against DuckDB on a read-only connection, cancelled if
    it runs past a 5-second timeout, and `fetchmany(200)` so a broad query
    can't return unbounded rows.
 5. **Summarize** — if `include_summary` is true (default), a second LLM call
    turns the rows into 1–2 sentences. This step is best-effort: any failure
    leaves `summary` null rather than failing the request.
-6. **Respond** — return `question`, `sql`, `rows`, `row_count`, and
-   `summary`. The web UI derives the headline figure, the descending-sorted
-   bar chart, and the results table from this payload on the client.
+6. **Respond** — return `question`, `sql`, `rows`, `row_count`, `summary`,
+   and (only when `RAG_DEBUG` is on) `rag_debug` with the retrieval
+   diagnostics. The web UI derives the headline figure, the
+   descending-sorted bar chart, and the results table from this payload
+   on the client.
 
 ## Setup
 
@@ -204,9 +212,10 @@ Notes:
 ## Swapping in your own database
 
 `app/db.py` is written for DuckDB, but the pattern generalizes — and
-`app/rag/schema_loader.py` already formalizes it as a `SchemaLoader`
-interface with two implementations (DuckDB, and a legacy SQLite one) that
-the rest of the RAG layer doesn't care about the difference between:
+`app/rag/catalog/physical_schema.py` already formalizes it as a
+`SchemaLoader` interface with two implementations (DuckDB, and a legacy
+SQLite one) that the rest of the RAG layer doesn't care about the
+difference between:
 
 - **Postgres**: use `psycopg2` / `asyncpg` for the connection; introspect via
   `information_schema.columns` and `information_schema.table_constraints`
@@ -216,6 +225,61 @@ the rest of the RAG layer doesn't care about the difference between:
 
 The safety validation (`validate_sql`), row capping, and FastAPI layer don't
 need to change.
+
+## Schema-aware RAG
+
+Instead of always sending the entire schema to the SQL-generation LLM,
+`app/rag/` retrieves just the tables relevant to each question:
+
+```
+question -> hybrid retrieval (semantic + keyword) + value-aware matching
+-> foreign-key graph expansion (adds join-path tables retrieval missed)
+-> compact context -> LLM
+```
+
+- **Business metadata** (`app/metadata/<domain>.yaml`) enriches the
+  physically-discovered schema with descriptions, synonyms, and metric
+  definitions — human-editable, never duplicating what the database
+  already knows (column types, foreign keys).
+- **Retrieval** blends semantic similarity (OpenAI embeddings, cached and
+  reused across requests) with keyword/business-term matching
+  (`RAG_SEMANTIC_WEIGHT` / `RAG_KEYWORD_WEIGHT`, default 0.7/0.3).
+- **Value-aware matching** (`app/rag/retrieval/value_index.py`) catches
+  what schema-level retrieval structurally can't: a question mentioning a
+  specific record (a customer's name, a product name, a status like
+  "cancelled") force-includes that table, since a proper noun or literal
+  value matches nothing in the schema/business-term vocabulary no matter
+  how retrieval is tuned. Built fresh from the live database each time the
+  app starts (not cached — it depends on actual data, not just schema).
+- **Graph expansion** adds bridge tables via the shortest real
+  foreign-key path when retrieval picks tables that aren't directly
+  joinable — see `app/rag/retrieval/schema_graph.py`.
+- **Fallback**: if RAG is disabled, retrieval's confidence is too low
+  (`RAG_MIN_SCORE`) with no value match to override it, or anything in the
+  RAG layer errors, the request transparently falls back to the original
+  full-schema behavior — RAG is an additional context-selection layer,
+  never a replacement for the safety/validation layer.
+
+Key settings (all in `app/rag/config.py`, env-overridable):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RAG_ENABLED` | `true` | Master switch; `false` restores the pre-RAG full-schema behavior |
+| `RAG_TOP_K` | `3` | Tables selected by retrieval, before graph expansion |
+| `RAG_MIN_SCORE` | `0.10` | Below this, fall back to the full schema |
+| `RAG_MAX_CONTEXT_TABLES` | `6` | Hard cap after graph expansion |
+| `RAG_DEBUG` | `false` | Adds a `rag_debug` field to `/ask` with per-table scores, graph-added tables, and fallback reason |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Used for both schema documents and questions |
+
+**Refreshing after a schema or metadata change:**
+
+```bash
+python -m app.rag.refresh --schema ecommerce
+```
+
+Rebuilds documents and embeddings, re-embedding only the tables whose
+rendered document actually changed (content-hash based). `--all` refreshes
+every registered domain.
 
 ## Safety notes
 
@@ -237,12 +301,16 @@ at a real database, also consider:
   tables into the prompt.
 - If generated SQL is subtly wrong (wrong join, wrong aggregation), add a few
   example question -> SQL pairs to the system prompt (few-shot).
-- For a bigger schema, retrieve only the relevant tables per question (schema
-  RAG) instead of sending the whole schema every time.
+- This already retrieves only the relevant tables per question rather than
+  sending the whole schema every time (see [Schema-aware RAG](#schema-aware-rag)) —
+  on a much larger schema than this demo's 8 tables, that's where the real
+  prompt-size win shows up.
 - `gpt-4o-mini` is a solid default; upgrade to `gpt-4o` for complex multi-join
   queries if you see accuracy issues.
 
 ## Cost note
 
-Every `/ask` call makes 1–2 OpenAI API calls (SQL generation, plus an optional
-summary). Track usage on the OpenAI dashboard.
+Every `/ask` call makes 2–3 OpenAI API calls: one embedding call to
+retrieve relevant schema (skipped when `RAG_ENABLED=false`), SQL
+generation, and an optional summary call. Track usage on the OpenAI
+dashboard.

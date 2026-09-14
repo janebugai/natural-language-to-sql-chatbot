@@ -20,7 +20,7 @@ from pathlib import Path
 
 import duckdb
 
-from app.rag.models import ColumnMetadata, ForeignKey, SchemaRegistryEntry, TableMetadata
+from app.rag.catalog.models import ColumnMetadata, ForeignKey, SchemaRegistryEntry, TableMetadata
 
 
 class SchemaLoader(ABC):
@@ -29,6 +29,17 @@ class SchemaLoader(ABC):
     @abstractmethod
     def load_tables(self, database_schema: str) -> list[TableMetadata]:
         """Return physical metadata for every table visible in the given schema/namespace."""
+
+    @abstractmethod
+    def distinct_values(self, table_name: str, column_name: str, max_values: int) -> list[str] | None:
+        """
+        Up to `max_values` distinct, non-null values of one column, or None
+        if the column has more distinct values than that (too high-
+        cardinality to be useful -- e.g. a free-text column). Used by
+        app/rag/retrieval/value_index.py to notice when a question mentions
+        a specific record (a customer's name, a product name, ...) that
+        schema-level retrieval has no way to see.
+        """
 
 
 class SQLiteSchemaLoader(SchemaLoader):
@@ -96,6 +107,18 @@ class SQLiteSchemaLoader(SchemaLoader):
             primary_keys=primary_keys,
             foreign_keys=foreign_keys,
         )
+
+    def distinct_values(self, table_name: str, column_name: str, max_values: int) -> list[str] | None:
+        conn = sqlite3.connect(self.database_path)
+        try:
+            cur = conn.cursor()
+            cur.execute(f'SELECT COUNT(DISTINCT "{column_name}") FROM "{table_name}"')
+            if cur.fetchone()[0] > max_values:
+                return None
+            cur.execute(f'SELECT DISTINCT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL')
+            return [row[0] for row in cur.fetchall()]
+        finally:
+            conn.close()
 
 
 class DuckDBSchemaLoader(SchemaLoader):
@@ -189,6 +212,19 @@ class DuckDBSchemaLoader(SchemaLoader):
             primary_keys=primary_keys,
             foreign_keys=foreign_keys,
         )
+
+    def distinct_values(self, table_name: str, column_name: str, max_values: int) -> list[str] | None:
+        conn = duckdb.connect(str(self.database_path), read_only=True)
+        try:
+            count = conn.execute(f'SELECT COUNT(DISTINCT "{column_name}") FROM "{table_name}"').fetchone()[0]
+            if count > max_values:
+                return None
+            rows = conn.execute(
+                f'SELECT DISTINCT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL'
+            ).fetchall()
+            return [row[0] for row in rows]
+        finally:
+            conn.close()
 
 
 _LOADER_FACTORIES = {

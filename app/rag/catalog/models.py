@@ -2,10 +2,10 @@
 Typed, domain-agnostic representations of schema metadata.
 
 These are deliberately decoupled from both the raw database-introspection
-format and the YAML business-metadata format: schema_loader and
-metadata_loader each produce/consume these, but neither format leaks into
-the other, and nothing here knows about any particular domain, table, or
-column name.
+format and the YAML business-metadata format: physical_schema.py and
+business_metadata.py each produce/consume these, but neither format leaks
+into the other, and nothing here knows about any particular domain,
+table, or column name.
 """
 from __future__ import annotations
 

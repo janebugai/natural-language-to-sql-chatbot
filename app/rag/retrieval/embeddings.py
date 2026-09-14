@@ -22,12 +22,13 @@ from pathlib import Path
 import numpy as np
 from openai import OpenAI
 
-from app.rag.schema_documents import SchemaDocument
+from app.rag import config
+from app.rag.retrieval.schema_documents import SchemaDocument
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
-CACHE_DIR = Path(__file__).resolve().parent / "cache"
+DEFAULT_EMBEDDING_MODEL = config.EMBEDDING_MODEL
+CACHE_DIR = Path(__file__).resolve().parent.parent / "cache"  # app/rag/cache/
 
 
 class EmbeddingProvider(ABC):
@@ -80,9 +81,8 @@ class RefreshStats:
 class EmbeddingCache:
     """
     One JSON file per domain under app/rag/cache/, keyed by content hash.
-    Plain JSON rather than pickle/SQLite — this is a portfolio-scale cache,
-    and a file a reviewer can open and read is worth more than the
-    marginal efficiency of a binary format.
+    Plain text, not a binary format, so the cache can be opened and read
+    directly instead of needing a tool to inspect it.
     """
 
     def __init__(self, domain: str, cache_dir: Path = CACHE_DIR):
