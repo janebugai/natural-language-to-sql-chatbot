@@ -11,16 +11,13 @@ invents a relationship that isn't a real foreign key, and nothing here
 knows a table or column by name -- it only ever sees whatever
 TableMetadata objects it's handed.
 
-Known characteristic, not a bug: expansion optimizes purely for FK hop
-count, not business-story naturalness. In the demo schema, connecting
-"customers" and "products" bridges through "reviews" (2 hops: both have a
-direct FK to it) rather than through "orders" + "order_items" (3 hops),
-even though the latter is the more obviously "correct" story for most
-questions. A real shortest-path search has no way to know that -- it just
-counts edges. This is exactly the conservative, no-invented-relationships
-behavior the design calls for; making it prefer "primary" join paths would
-require weighting edges by something other than hop count, which is a
-reasonable future improvement but out of scope here.
+Expansion picks the path with the fewest FK hops, not the path that best
+matches the business story. In the demo schema, connecting "customers" and
+"products" bridges through "reviews" (2 hops -- it has a direct FK to
+both) rather than through "orders" + "order_items" (3 hops), even for
+questions where the orders path is the more natural fit. Preferring
+"primary" join paths over merely-shorter ones would require weighting
+edges by something other than hop count.
 """
 from __future__ import annotations
 
