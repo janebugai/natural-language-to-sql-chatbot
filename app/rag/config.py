@@ -32,7 +32,21 @@ RAG_ENABLED: bool = _bool_env("RAG_ENABLED", True)
 
 # How many tables retrieval selects for the LLM's context, before any
 # foreign-key graph expansion adds bridge tables on top.
-RAG_TOP_K: int = _int_env("RAG_TOP_K", 3)
+#
+# 4, not 3 -- raised after a real miss: "what's the most expensive
+# product Kai Patel has bought" scored customers 4th (0.106), just below
+# a top_k=3 cutoff, because "Kai Patel" is a proper noun that matches
+# nothing in the schema/business-term vocabulary, while "product"/"bought"
+# pull hard toward products/orders/order_items. Graph expansion didn't
+# rescue it either, since those three tables were already connected to
+# each other -- there was nothing to bridge. top_k=4 fixed this specific
+# case, but it's a margin increase, not a real fix: the underlying
+# limitation (proper nouns / literal values in the question aren't
+# visible to schema-level retrieval at all) can still bite on a value
+# that needs a table ranked 5th or lower. See the README's limitations
+# section; column/value-aware retrieval is the real fix, and is listed
+# as a recommended next step, not attempted here.
+RAG_TOP_K: int = _int_env("RAG_TOP_K", 4)
 
 # Hybrid ranking weights (retriever.py). Both scores are already normalized
 # to [0, 1], so keeping these two summing to 1.0 keeps final_score in a
