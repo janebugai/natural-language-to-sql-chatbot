@@ -232,8 +232,9 @@ Instead of always sending the entire schema to the SQL-generation LLM,
 `app/rag/` retrieves just the tables relevant to each question:
 
 ```
-question -> hybrid retrieval (semantic + keyword) -> foreign-key graph
-expansion (adds join-path tables retrieval missed) -> compact context -> LLM
+question -> hybrid retrieval (semantic + keyword) + value-aware matching
+-> foreign-key graph expansion (adds join-path tables retrieval missed)
+-> compact context -> LLM
 ```
 
 - **Business metadata** (`app/metadata/<domain>.yaml`) enriches the
@@ -243,14 +244,21 @@ expansion (adds join-path tables retrieval missed) -> compact context -> LLM
 - **Retrieval** blends semantic similarity (OpenAI embeddings, cached and
   reused across requests) with keyword/business-term matching
   (`RAG_SEMANTIC_WEIGHT` / `RAG_KEYWORD_WEIGHT`, default 0.7/0.3).
+- **Value-aware matching** (`app/rag/retrieval/value_index.py`) catches
+  what schema-level retrieval structurally can't: a question mentioning a
+  specific record (a customer's name, a product name, a status like
+  "cancelled") force-includes that table, since a proper noun or literal
+  value matches nothing in the schema/business-term vocabulary no matter
+  how retrieval is tuned. Built fresh from the live database each time the
+  app starts (not cached — it depends on actual data, not just schema).
 - **Graph expansion** adds bridge tables via the shortest real
   foreign-key path when retrieval picks tables that aren't directly
   joinable — see `app/rag/retrieval/schema_graph.py`.
 - **Fallback**: if RAG is disabled, retrieval's confidence is too low
-  (`RAG_MIN_SCORE`), or anything in the RAG layer errors, the request
-  transparently falls back to the original full-schema behavior — RAG is
-  an additional context-selection layer, never a replacement for the
-  safety/validation layer.
+  (`RAG_MIN_SCORE`) with no value match to override it, or anything in the
+  RAG layer errors, the request transparently falls back to the original
+  full-schema behavior — RAG is an additional context-selection layer,
+  never a replacement for the safety/validation layer.
 
 Key settings (all in `app/rag/config.py`, env-overridable):
 
