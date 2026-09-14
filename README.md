@@ -265,21 +265,52 @@ Key settings (all in `app/rag/config.py`, env-overridable):
 | Variable | Default | Meaning |
 |---|---|---|
 | `RAG_ENABLED` | `true` | Master switch; `false` restores the pre-RAG full-schema behavior |
-| `RAG_TOP_K` | `3` | Tables selected by retrieval, before graph expansion |
+| `RAG_TOP_K` | `4` | Tables selected by retrieval, before graph expansion |
 | `RAG_MIN_SCORE` | `0.10` | Below this, fall back to the full schema |
 | `RAG_MAX_CONTEXT_TABLES` | `6` | Hard cap after graph expansion |
 | `RAG_DEBUG` | `false` | Adds a `rag_debug` field to `/ask` with per-table scores, graph-added tables, and fallback reason |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | Used for both schema documents and questions |
 
-**Refreshing after a schema or metadata change:**
+### Adding a new schema/domain
 
-```bash
-python -m app.rag.refresh --schema ecommerce
-```
+1. Add the database (a new backend, a new set of tables — however it gets built).
+2. Register it in `app/metadata/schemas.yaml`:
+   ```yaml
+   schemas:
+     finance:
+       description: Finance domain.
+       backend: duckdb           # or sqlite
+       database_path: finance.duckdb
+       database_schema: main
+       metadata_file: metadata/finance.yaml
+   ```
+3. Create its business metadata file — copy `app/metadata/_template.yaml` to
+   `app/metadata/finance.yaml` and fill in descriptions/business terms.
+   Table/column *physical* facts (types, PKs, FKs) never go here — they're
+   discovered automatically.
+4. Run:
+   ```bash
+   python -m app.rag.refresh --schema finance
+   ```
+5. Point `app/main.py`'s `RAG_DOMAIN` at it (domain selection is hardcoded
+   to one domain for now — see `app/rag/pipeline.py`), and run the test
+   suite / an eval pass against it.
 
-Rebuilds documents and embeddings, re-embedding only the tables whose
-rendered document actually changed (content-hash based). `--all` refreshes
-every registered domain.
+No retrieval code (`app/rag/retrieval/`) needs to change for any of this.
+
+### Updating business metadata
+
+1. Edit the domain's YAML file (e.g. `app/metadata/ecommerce.yaml`) —
+   change a description, add a synonym, add/adjust a metric definition.
+2. Run:
+   ```bash
+   python -m app.rag.refresh --schema ecommerce
+   ```
+3. Only the tables whose *rendered document* actually changed get
+   re-embedded (content-hash based) — editing one table's description
+   doesn't cost an API call for the other seven.
+
+`--all` refreshes every registered domain instead of just one.
 
 ## Tests
 
@@ -294,6 +325,20 @@ tests use a deterministic fake provider (`FakeEmbeddingProvider` in
 the real ecommerce database (`demo.duckdb`) skip cleanly with a clear
 message if it hasn't been built yet, rather than failing confusingly —
 see [Build the demo database](#3-build-the-demo-database).
+
+## Evaluation
+
+`eval/` measures the RAG pipeline against the pre-RAG full-schema baseline
+on 30 real questions, using real OpenAI calls and the real database — not
+a synthetic benchmark. See **[eval/README.md](eval/README.md)** for the
+actual methodology and results, including what didn't come out well (RAG's
+context is larger than the baseline's on this small schema; precision is
+moderate despite perfect recall). Re-run it yourself:
+
+```bash
+python -m eval.evaluator   # writes eval/results.json
+python -m eval.metrics      # prints the report
+```
 
 ## Safety notes
 
