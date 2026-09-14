@@ -1,0 +1,4 @@
+# Dev/test only: pip install -r requirements.txt -r requirements-dev.txt
+# The running app never imports pytest.
+pytest==8.3.5
+httpx==0.28.1

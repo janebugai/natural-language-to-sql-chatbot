@@ -85,9 +85,14 @@ class EmbeddingCache:
     directly instead of needing a tool to inspect it.
     """
 
-    def __init__(self, domain: str, cache_dir: Path = CACHE_DIR):
+    def __init__(self, domain: str, cache_dir: Path | None = None):
+        # Resolved at call time, not bound as a default-argument value --
+        # a default of `cache_dir: Path = CACHE_DIR` would capture
+        # whatever CACHE_DIR was at import time and never see a later
+        # monkeypatch/override, which is exactly the kind of surprising
+        # bug this module shouldn't have.
         self.domain = domain
-        self.path = cache_dir / f"{domain}.json"
+        self.path = (cache_dir if cache_dir is not None else CACHE_DIR) / f"{domain}.json"
         self._entries: dict[str, dict] = {}
         self._model: str | None = None
         self._load()
@@ -185,7 +190,9 @@ def embed_documents(
     return embedded, stats
 
 
-def load_cached_embeddings(domain: str, documents: list[SchemaDocument]) -> list[EmbeddedDocument] | None:
+def load_cached_embeddings(
+    domain: str, documents: list[SchemaDocument], cache_dir: Path | None = None
+) -> list[EmbeddedDocument] | None:
     """
     Loads embeddings for a domain purely from cache — never calls the
     embedding provider. Used at application startup so the app doesn't make
@@ -194,7 +201,7 @@ def load_cached_embeddings(domain: str, documents: list[SchemaDocument]) -> list
     decide to fall back or trigger a refresh rather than silently querying
     against an incomplete index.
     """
-    cache = EmbeddingCache(domain)
+    cache = EmbeddingCache(domain, cache_dir=cache_dir)
     if not cache.path.exists() or cache.model is None:
         return None
 

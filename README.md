@@ -281,6 +281,20 @@ Rebuilds documents and embeddings, re-embedding only the tables whose
 rendered document actually changed (content-hash based). `--all` refreshes
 every registered domain.
 
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+No live OpenAI credentials are required — question/document embeddings in
+tests use a deterministic fake provider (`FakeEmbeddingProvider` in
+`tests/conftest.py`), and every LLM chat call is mocked. Tests that need
+the real ecommerce database (`demo.duckdb`) skip cleanly with a clear
+message if it hasn't been built yet, rather than failing confusingly —
+see [Build the demo database](#3-build-the-demo-database).
+
 ## Safety notes
 
 This is a starting point, not a production-hardened system. Before pointing it
