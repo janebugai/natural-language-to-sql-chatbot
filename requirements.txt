@@ -1,3 +1,4 @@
+# Runtime -- what the running app actually imports.
 fastapi==0.139.0
 uvicorn[standard]==0.48.0
 gunicorn==23.0.0
@@ -7,3 +8,14 @@ python-dotenv==1.2.2
 PyYAML==6.0.2
 numpy==2.2.6
 duckdb==1.5.3
+
+# Build-time -- (re)builds demo.duckdb from dbt/ (see README: Build the
+# demo database). The running app never imports dbt; it only reads the
+# DuckDB file dbt produces, via the lightweight `duckdb` client above.
+dbt-core==1.12.4
+dbt-duckdb==1.11.0
+
+# Dev/test -- running the test suite (see README: Tests). The running app
+# never imports pytest.
+pytest==8.3.5
+httpx==0.28.1
