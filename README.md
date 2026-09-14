@@ -1,10 +1,12 @@
 # Natural Language to SQL Chatbot
 
-This chatbot lets a non-technical user query the demo database in plain
-English. A user asks a question ("Which products sold the most last month?");
-an LLM writes the SQL, the system checks it is safe, runs it, and returns a
-written summary, the key figure, a chart, and the data table, with the query
-shown for transparency.
+AI-powered analytics assistant that lets business users query relational
+data in plain English. It dynamically inspects the database schema,
+generates and validates read-only SQL, executes the query, and returns an
+interpretable answer with key metrics, visualizations, source data, and the
+generated SQL.
+
+[![Demo video](nl-to-sql-chatbot-image.jpg)](nl-to-sql-chatbot-recording.mp4)
 
 It exists to cut the volume of routine data requests to the analytics team
 and give stakeholders faster self-serve reporting. It only runs read-only
