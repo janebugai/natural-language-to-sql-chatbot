@@ -1,0 +1,14 @@
+# Domain registry: maps a domain name to its physical database and its
+# business-metadata file. This is the only place a domain gets registered —
+# no application or retrieval code should hardcode this mapping.
+#
+# To add a new domain: add an entry here, create its metadata file (see
+# _template.yaml), then run `python -m app.rag.refresh --schema <name>`.
+
+schemas:
+  ecommerce:
+    description: E-commerce demo store (catalog, orders, fulfillment, reviews, returns).
+    backend: sqlite
+    database_path: demo.db          # relative to the repo root
+    database_schema: main           # SQLite's implicit schema name
+    metadata_file: metadata/ecommerce.yaml   # relative to app/

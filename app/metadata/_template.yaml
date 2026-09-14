@@ -1,0 +1,39 @@
+# Template for a new domain's business metadata file.
+#
+# To add a new domain (e.g. "finance"):
+#   1. Copy this file to app/metadata/<domain>.yaml and fill it in.
+#   2. Add an entry for it in app/metadata/schemas.yaml.
+#   3. Run: python -m app.rag.refresh --schema <domain>
+#
+# Only describe tables/columns that add real business context. You never
+# need to redeclare column types, primary keys, or foreign keys here — the
+# database already provides those, and this file is checked against the
+# live schema on load (unknown tables/columns are skipped with a warning,
+# not an error).
+
+schema_name: REPLACE_WITH_DOMAIN_NAME
+
+description: >
+  One or two sentences describing what this domain covers and who uses it.
+
+# Terms that apply to the whole domain, for keyword matching against
+# broad questions (e.g. "show me finance data").
+domain_business_terms:
+  - REPLACE_ME
+
+# Optional: named business metrics that don't map to a single column
+# (e.g. "revenue" = a formula over multiple tables). These show up in the
+# LLM's schema context so it understands what the business means by them.
+metrics:
+  example_metric_name:
+    description: What this metric means in plain business language.
+    synonyms: [alternate name 1, alternate name 2]
+
+tables:
+  example_table_name:
+    description: What one row in this table represents.
+    business_terms: [synonym or related term, another one]
+    columns:
+      example_column_name:
+        description: What this column means.
+        business_terms: [optional synonyms specific to this column]
