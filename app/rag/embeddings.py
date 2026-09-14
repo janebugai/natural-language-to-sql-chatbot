@@ -22,11 +22,12 @@ from pathlib import Path
 import numpy as np
 from openai import OpenAI
 
+from app.rag import config
 from app.rag.schema_documents import SchemaDocument
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_EMBEDDING_MODEL = os.environ.get("EMBEDDING_MODEL", "text-embedding-3-small")
+DEFAULT_EMBEDDING_MODEL = config.EMBEDDING_MODEL
 CACHE_DIR = Path(__file__).resolve().parent / "cache"
 
 
