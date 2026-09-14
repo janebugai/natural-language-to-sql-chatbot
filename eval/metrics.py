@@ -28,6 +28,15 @@ def by_system(results: list[dict], system: str) -> list[dict]:
     return [r for r in results if r["system"] == system]
 
 
+def in_scope(results: list[dict], questions: dict[str, dict]) -> list[dict]:
+    """Questions answerable from this schema -- excludes out_of_scope (no such data in the data model)."""
+    return [r for r in results if questions[r["question_id"]]["category"] != "out_of_scope"]
+
+
+def out_of_scope(results: list[dict], questions: dict[str, dict]) -> list[dict]:
+    return [r for r in results if questions[r["question_id"]]["category"] == "out_of_scope"]
+
+
 def _rate(numerator: int, denominator: int) -> float | None:
     return numerator / denominator if denominator else None
 
@@ -176,43 +185,35 @@ def _fmt_num(value: float | None, decimals: int = 0) -> str:
 def generate_report() -> str:
     questions = load_questions()
     results = load_results()
-    baseline = by_system(results, "baseline")
-    rag = by_system(results, "rag")
+    baseline, rag = by_system(results, "baseline"), by_system(results, "rag")
+    n_in_scope = sum(1 for q in questions.values() if q["category"] != "out_of_scope")
+    n_out_of_scope = len(questions) - n_in_scope
+
+    baseline_in, rag_in = in_scope(baseline, questions), in_scope(rag, questions)
+    baseline_out, rag_out = out_of_scope(baseline, questions), out_of_scope(rag, questions)
 
     lines = [
-        f"Questions evaluated: {len(questions)}",
+        f"Questions: {len(questions)} total -- {n_in_scope} in-scope, {n_out_of_scope} out-of-scope (no such data in this schema)",
         f"Baseline model: {SQL_MODEL}",
         "",
+        f"## In-scope questions (n={n_in_scope})",
         "| Metric | Baseline | RAG |",
         "|---|---:|---:|",
-        f"| SQL execution success | {_fmt_pct(sql_execution_success_rate(baseline))} | {_fmt_pct(sql_execution_success_rate(rag))} |",
-        f"| Repair rate | {_fmt_pct(repair_rate(baseline))} | {_fmt_pct(repair_rate(rag))} |",
-        f"| Repair success rate | {_fmt_pct(repair_success_rate(baseline))} | {_fmt_pct(repair_success_rate(rag))} |",
-        f"| Invalid table/column references | {invalid_reference_count(baseline)} | {invalid_reference_count(rag)} |",
-        f"| Avg schema context size (characters) | {_fmt_num(avg_schema_characters(baseline))} | {_fmt_num(avg_schema_characters(rag))} |",
-        f"| Avg SQL-generation latency (ms, incl. any repair) | {_fmt_num(avg_generation_latency_ms(baseline))} | {_fmt_num(avg_generation_latency_ms(rag))} |",
-        f"| Avg end-to-end latency (ms; RAG includes retrieval) | {_fmt_num(avg_end_to_end_latency_ms(baseline))} | {_fmt_num(avg_end_to_end_latency_ms(rag))} |",
+        f"| SQL execution success | {_fmt_pct(sql_execution_success_rate(baseline_in))} | {_fmt_pct(sql_execution_success_rate(rag_in))} |",
+        f"| Repair rate | {_fmt_pct(repair_rate(baseline_in))} | {_fmt_pct(repair_rate(rag_in))} |",
+        f"| Repair success rate | {_fmt_pct(repair_success_rate(baseline_in))} | {_fmt_pct(repair_success_rate(rag_in))} |",
+        f"| Invalid table/column references | {invalid_reference_count(baseline_in)} | {invalid_reference_count(rag_in)} |",
+        f"| Avg schema context size (characters) | {_fmt_num(avg_schema_characters(baseline_in))} | {_fmt_num(avg_schema_characters(rag_in))} |",
+        f"| Avg end-to-end latency (ms) | {_fmt_num(avg_end_to_end_latency_ms(baseline_in))} | {_fmt_num(avg_end_to_end_latency_ms(rag_in))} |",
+        f"| Required-table recall | -- | {_fmt_pct(required_table_recall(rag_in, questions))} |",
+        f"| Precision | -- | {_fmt_pct(precision(rag_in, questions))} |",
         "",
-        "RAG-specific retrieval metrics:",
-        f"- Required-table recall: {_fmt_pct(required_table_recall(rag, questions))}",
-        f"- Precision: {_fmt_pct(precision(rag, questions))}",
-        f"- Top-k retrieval accuracy (all expected tables present): {_fmt_pct(top_k_retrieval_accuracy(rag, questions))}",
+        f"## Out-of-scope questions (n={n_out_of_scope})",
+        "Correctly declined (returned the 'cannot answer' sentinel instead of fabricating a result):",
+        "| Baseline | RAG |",
+        "|---:|---:|",
+        f"| {out_of_scope_handling(baseline_out, questions)['declined']}/{n_out_of_scope} | {out_of_scope_handling(rag_out, questions)['declined']}/{n_out_of_scope} |",
     ]
-
-    bridge = bridge_table_expansion_success(rag, questions)
-    lines.append(f"- Bridge-table expansion success: {bridge['succeeded']}/{bridge['total']} ({_fmt_pct(bridge['rate'])})")
-    for d in bridge["details"]:
-        lines.append(f"    - {d['question_id']}: needed {d['needed_bridge']}, graph added {d['graph_added']} -> {'OK' if d['ok'] else 'MISSED'}")
-
-    rag_latencies = [r["retrieval_latency_ms"] for r in rag if r["retrieval_latency_ms"] is not None]
-    if rag_latencies:
-        lines.append(f"- Avg retrieval-only latency: {sum(rag_latencies) / len(rag_latencies):.0f} ms")
-
-    lines.append("")
-    lines.append("Out-of-scope handling (declined rather than fabricated an answer):")
-    for system, rows in [("baseline", baseline), ("rag", rag)]:
-        oos = out_of_scope_handling(rows, questions)
-        lines.append(f"- {system}: {oos['declined']}/{oos['total']} ({_fmt_pct(oos['rate'])})")
 
     return "\n".join(lines)
 
