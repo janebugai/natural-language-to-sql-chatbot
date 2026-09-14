@@ -121,6 +121,8 @@ def _build_rag_debug(rag_result: rag_pipeline.RagAnswerResult | None) -> dict | 
         ]
     if rag_result.expansion is not None:
         debug["graph_added_tables"] = rag_result.expansion.bridge_tables
+    if rag_result.value_matched_tables:
+        debug["value_matched_tables"] = rag_result.value_matched_tables
     if rag_result.context is not None:
         debug["final_tables"] = rag_result.context.table_names
         debug["context_characters"] = rag_result.context.character_count
