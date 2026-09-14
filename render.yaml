@@ -5,7 +5,11 @@ services:
     name: nl-to-sql-chatbot
     runtime: python
     plan: free
-    buildCommand: pip install -r requirements.txt && python create_demo_db.py
+    buildCommand: >
+      pip install -r requirements.txt -r requirements-dbt.txt &&
+      python scripts/generate_seed_data.py &&
+      dbt seed --project-dir dbt --profiles-dir dbt &&
+      dbt run --project-dir dbt --profiles-dir dbt
     startCommand: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT --timeout 120
     healthCheckPath: /health
     envVars:

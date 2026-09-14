@@ -1,8 +1,17 @@
 # Secrets
 .env
 
-# Generated demo database (recreate with: python create_demo_db.py)
-demo.db
+# Generated demo database + dbt build artifacts (recreate with:
+#   python scripts/generate_seed_data.py
+#   dbt seed --project-dir dbt --profiles-dir dbt
+#   dbt run  --project-dir dbt --profiles-dir dbt
+# )
+demo.duckdb
+dbt/seeds/*.csv
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
 
 # Python
 __pycache__/

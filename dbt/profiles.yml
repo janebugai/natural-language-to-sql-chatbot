@@ -1,0 +1,19 @@
+# DuckDB connection profile. No secrets (DuckDB is an embedded file, not a
+# server), so this is safe to commit — unlike a normal ~/.dbt/profiles.yml.
+#
+# Path is resolved relative to the directory dbt is invoked FROM (always the
+# repo root in this project's docs/commands), landing the file at
+# <repo root>/demo.duckdb — the same location demo.db used to live at.
+#
+# threads is 1 deliberately: DuckDB's DDL isn't safe under concurrent
+# writers in the same process — adding a foreign key constraint ALTERs the
+# referenced table, and two models building at once (e.g. order_items and
+# shipments, which both reference orders) hit a catalog write-write
+# conflict. This dataset is tiny, so running sequentially costs nothing.
+sql_chatbot:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: demo.duckdb
+      threads: 1

@@ -1,0 +1,10 @@
+# Build-time only: used to (re)build demo.duckdb from dbt/, via
+#   pip install -r requirements.txt -r requirements-dbt.txt
+#   python scripts/generate_seed_data.py
+#   dbt seed --project-dir dbt --profiles-dir dbt
+#   dbt run  --project-dir dbt --profiles-dir dbt
+#
+# The running app never imports dbt (see requirements.txt) — it only reads
+# the DuckDB file dbt produces, via the lightweight `duckdb` client.
+dbt-core==1.12.4
+dbt-duckdb==1.11.0

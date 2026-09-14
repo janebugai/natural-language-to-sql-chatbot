@@ -8,7 +8,7 @@
 schemas:
   ecommerce:
     description: E-commerce demo store (catalog, orders, fulfillment, reviews, returns).
-    backend: sqlite
-    database_path: demo.db          # relative to the repo root
-    database_schema: main           # SQLite's implicit schema name
+    backend: duckdb
+    database_path: demo.duckdb      # relative to the repo root; built by dbt (see dbt/)
+    database_schema: main           # dbt materializes marts into DuckDB's default "main" schema
     metadata_file: metadata/ecommerce.yaml   # relative to app/

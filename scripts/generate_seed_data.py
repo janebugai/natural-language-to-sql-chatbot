@@ -1,108 +1,30 @@
 """
-Creates the demo SQLite database (demo.db): a small but realistic online-store
-schema so the natural-language-to-SQL chatbot has something rich to query.
+Generates the raw seed data for the demo e-commerce dataset as CSVs under
+dbt/seeds/. dbt loads these as-is; the dbt models in dbt/models/staging and
+dbt/models/marts do the typing, cleanup, and computed transformations.
 
-Eight tables — categories, customers, products, orders, order_items, reviews,
-shipments, returns. Every date is anchored to date.today() and order volume is
-seasonally weighted (holiday spike, weekend lift), so questions like "revenue
-last month" or "return rate this quarter" always land on real data, whenever
-this runs.
+This replaces the old create_demo_db.py, which wrote straight into a
+SQLite file. The random-generation logic is unchanged (same SEED=42, same
+distributions) — only the output format changed, from SQLite INSERTs to
+CSV rows that dbt seeds.
 
-Run: python create_demo_db.py
+Eight raw tables — categories, customers, products, orders, order_items,
+reviews, shipments, returns. Every date is anchored to date.today() and
+order volume is seasonally weighted (holiday spike, weekend lift), so
+questions like "revenue last month" or "return rate this quarter" always
+land on real data, whenever this runs.
+
+Run: python scripts/generate_seed_data.py
+Then: dbt seed --project-dir dbt --profiles-dir dbt
+      dbt run  --project-dir dbt --profiles-dir dbt
 """
+import csv
 import random
-import sqlite3
 from datetime import date, timedelta
+from pathlib import Path
 
-DB_PATH = "demo.db"
+SEEDS_DIR = Path(__file__).resolve().parent.parent / "dbt" / "seeds"
 SEED = 42  # fixed so the data shape is reproducible across runs / deploys
-
-SCHEMA = """
-DROP TABLE IF EXISTS returns;
-DROP TABLE IF EXISTS shipments;
-DROP TABLE IF EXISTS reviews;
-DROP TABLE IF EXISTS order_items;
-DROP TABLE IF EXISTS orders;
-DROP TABLE IF EXISTS products;
-DROP TABLE IF EXISTS categories;
-DROP TABLE IF EXISTS customers;
-
-CREATE TABLE categories (
-    category_id   INTEGER PRIMARY KEY,
-    name          TEXT NOT NULL,
-    department    TEXT NOT NULL,
-    target_margin REAL NOT NULL
-);
-
-CREATE TABLE customers (
-    customer_id         INTEGER PRIMARY KEY,
-    name                TEXT NOT NULL,
-    email               TEXT NOT NULL,
-    city                TEXT,
-    country             TEXT,
-    acquisition_channel TEXT,
-    birth_date          DATE,
-    is_business         INTEGER NOT NULL DEFAULT 0,
-    signup_date         DATE
-);
-
-CREATE TABLE products (
-    product_id   INTEGER PRIMARY KEY,
-    category_id  INTEGER NOT NULL REFERENCES categories(category_id),
-    product_name TEXT NOT NULL,
-    brand        TEXT,
-    unit_price   REAL NOT NULL,
-    cost         REAL NOT NULL,
-    launch_date  DATE,
-    is_active    INTEGER NOT NULL DEFAULT 1
-);
-
-CREATE TABLE orders (
-    order_id       INTEGER PRIMARY KEY,
-    customer_id    INTEGER NOT NULL REFERENCES customers(customer_id),
-    order_date     DATE NOT NULL,
-    status         TEXT NOT NULL,
-    channel        TEXT,
-    payment_method TEXT,
-    shipping_cost  REAL NOT NULL DEFAULT 0,
-    tax            REAL NOT NULL DEFAULT 0,
-    promo_code     TEXT
-);
-
-CREATE TABLE order_items (
-    order_item_id INTEGER PRIMARY KEY,
-    order_id      INTEGER NOT NULL REFERENCES orders(order_id),
-    product_id    INTEGER NOT NULL REFERENCES products(product_id),
-    quantity      INTEGER NOT NULL,
-    unit_price    REAL NOT NULL,
-    discount      REAL NOT NULL DEFAULT 0
-);
-
-CREATE TABLE reviews (
-    review_id   INTEGER PRIMARY KEY,
-    product_id  INTEGER NOT NULL REFERENCES products(product_id),
-    customer_id INTEGER NOT NULL REFERENCES customers(customer_id),
-    rating      INTEGER NOT NULL,
-    review_date DATE NOT NULL
-);
-
-CREATE TABLE shipments (
-    shipment_id    INTEGER PRIMARY KEY,
-    order_id       INTEGER NOT NULL REFERENCES orders(order_id),
-    carrier        TEXT NOT NULL,
-    shipped_date   DATE,
-    delivered_date DATE,
-    status         TEXT NOT NULL
-);
-
-CREATE TABLE returns (
-    return_id     INTEGER PRIMARY KEY,
-    order_item_id INTEGER NOT NULL REFERENCES order_items(order_item_id),
-    return_date   DATE NOT NULL,
-    reason        TEXT NOT NULL,
-    refund_amount REAL NOT NULL
-);
-"""
 
 # name, department, target_margin
 CATEGORIES = [
@@ -202,13 +124,19 @@ def _season_weight(d: date) -> float:
     return w
 
 
-def build_demo_db():
+def _write_csv(filename: str, header: list[str], rows: list[tuple]) -> None:
+    path = SEEDS_DIR / filename
+    with path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for row in rows:
+            writer.writerow("" if v is None else v for v in row)
+
+
+def generate_seed_data() -> None:
     random.seed(SEED)
     today = date.today()
-
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.executescript(SCHEMA)
+    SEEDS_DIR.mkdir(parents=True, exist_ok=True)
 
     # ---- categories ------------------------------------------------------
     category_rows = [(i, name, dept, margin) for i, (name, dept, margin) in enumerate(CATEGORIES, start=1)]
@@ -217,8 +145,8 @@ def build_demo_db():
     products = []
     pid = 0
     for cat_id, (cname, _dept, margin) in enumerate(CATEGORIES, start=1):
-        brands, items, (lo, hi) = CATALOG[cname]
-        combos = [(b, it) for it in items for b in brands]
+        brands, catalog_items, (lo, hi) = CATALOG[cname]
+        combos = [(b, it) for it in catalog_items for b in brands]
         random.shuffle(combos)
         for brand, item in combos[:11]:
             pid += 1
@@ -381,20 +309,28 @@ def build_demo_db():
         refund = round(line_total * random.uniform(0.75, 1.0), 2)
         returns_rows.append((ret_id, iid_, return_date.isoformat(), reason, refund))
 
-    # ---- insert ---------------------------------------------------
-    cur.executemany("INSERT INTO categories VALUES (?,?,?,?)", category_rows)
-    cur.executemany("INSERT INTO customers VALUES (?,?,?,?,?,?,?,?,?)", customers)
-    cur.executemany("INSERT INTO products VALUES (?,?,?,?,?,?,?,?)", products)
-    cur.executemany("INSERT INTO orders VALUES (?,?,?,?,?,?,?,?,?)", orders)
-    cur.executemany("INSERT INTO order_items VALUES (?,?,?,?,?,?)", items)
-    cur.executemany("INSERT INTO reviews VALUES (?,?,?,?,?)", reviews)
-    cur.executemany("INSERT INTO shipments VALUES (?,?,?,?,?,?)", shipments)
-    cur.executemany("INSERT INTO returns VALUES (?,?,?,?,?)", returns_rows)
+    # ---- write CSVs ---------------------------------------------------
+    _write_csv("raw_categories.csv",
+               ["category_id", "name", "department", "target_margin"], category_rows)
+    _write_csv("raw_customers.csv",
+               ["customer_id", "name", "email", "city", "country", "acquisition_channel",
+                "birth_date", "is_business", "signup_date"], customers)
+    _write_csv("raw_products.csv",
+               ["product_id", "category_id", "product_name", "brand", "unit_price", "cost",
+                "launch_date", "is_active"], products)
+    _write_csv("raw_orders.csv",
+               ["order_id", "customer_id", "order_date", "status", "channel", "payment_method",
+                "shipping_cost", "tax", "promo_code"], orders)
+    _write_csv("raw_order_items.csv",
+               ["order_item_id", "order_id", "product_id", "quantity", "unit_price", "discount"], items)
+    _write_csv("raw_reviews.csv",
+               ["review_id", "product_id", "customer_id", "rating", "review_date"], reviews)
+    _write_csv("raw_shipments.csv",
+               ["shipment_id", "order_id", "carrier", "shipped_date", "delivered_date", "status"], shipments)
+    _write_csv("raw_returns.csv",
+               ["return_id", "order_item_id", "return_date", "reason", "refund_amount"], returns_rows)
 
-    conn.commit()
-    conn.close()
-
-    print(f"Demo database created at {DB_PATH}")
+    print(f"Seed CSVs written to {SEEDS_DIR}")
     for label, rows in [
         ("categories", category_rows), ("customers", customers), ("products", products),
         ("orders", orders), ("order_items", items), ("reviews", reviews),
@@ -404,4 +340,4 @@ def build_demo_db():
 
 
 if __name__ == "__main__":
-    build_demo_db()
+    generate_seed_data()

@@ -1,0 +1,203 @@
+# Contracts are enforced on every mart: dbt validates the model's compiled
+# columns/types against what's declared here, and emits real PRIMARY
+# KEY / FOREIGN KEY constraints in the CREATE TABLE DDL. That's what makes
+# them introspectable afterward via duckdb_constraints() -- which is what
+# app/rag/schema_graph.py's foreign-key graph is built from. Business
+# descriptions/synonyms live in app/metadata/ecommerce.yaml, not here; this
+# file only needs to be technically accurate.
+version: 2
+
+models:
+  - name: categories
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: category_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: name
+        data_type: varchar
+      - name: department
+        data_type: varchar
+      - name: target_margin
+        data_type: double
+
+  - name: products
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: product_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: category_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('categories')
+            to_columns: [category_id]
+      - name: product_name
+        data_type: varchar
+      - name: brand
+        data_type: varchar
+      - name: unit_price
+        data_type: double
+      - name: cost
+        data_type: double
+      - name: margin_pct
+        data_type: double
+      - name: launch_date
+        data_type: date
+      - name: is_active
+        data_type: integer
+
+  - name: customers
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: customer_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: name
+        data_type: varchar
+      - name: email
+        data_type: varchar
+      - name: city
+        data_type: varchar
+      - name: country
+        data_type: varchar
+      - name: acquisition_channel
+        data_type: varchar
+      - name: birth_date
+        data_type: date
+      - name: is_business
+        data_type: integer
+      - name: signup_date
+        data_type: date
+      - name: lifetime_order_count
+        data_type: integer
+      - name: lifetime_revenue
+        data_type: double
+
+  - name: orders
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: order_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: customer_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('customers')
+            to_columns: [customer_id]
+      - name: order_date
+        data_type: date
+      - name: status
+        data_type: varchar
+      - name: channel
+        data_type: varchar
+      - name: payment_method
+        data_type: varchar
+      - name: shipping_cost
+        data_type: double
+      - name: tax
+        data_type: double
+      - name: promo_code
+        data_type: varchar
+
+  - name: order_items
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: order_item_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: order_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('orders')
+            to_columns: [order_id]
+      - name: product_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('products')
+            to_columns: [product_id]
+      - name: quantity
+        data_type: integer
+      - name: unit_price
+        data_type: double
+      - name: discount
+        data_type: double
+      - name: net_amount
+        data_type: double
+
+  - name: reviews
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: review_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: product_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('products')
+            to_columns: [product_id]
+      - name: customer_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('customers')
+            to_columns: [customer_id]
+      - name: rating
+        data_type: integer
+      - name: review_date
+        data_type: date
+
+  - name: shipments
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: shipment_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: order_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('orders')
+            to_columns: [order_id]
+      - name: carrier
+        data_type: varchar
+      - name: shipped_date
+        data_type: date
+      - name: delivered_date
+        data_type: date
+      - name: delivery_days
+        data_type: integer
+      - name: status
+        data_type: varchar
+
+  - name: returns
+    config:
+      contract: {enforced: true}
+    columns:
+      - name: return_id
+        data_type: integer
+        constraints: [{type: primary_key}]
+      - name: order_item_id
+        data_type: integer
+        constraints:
+          - type: foreign_key
+            to: ref('order_items')
+            to_columns: [order_item_id]
+      - name: return_date
+        data_type: date
+      - name: reason
+        data_type: varchar
+      - name: refund_amount
+        data_type: double
