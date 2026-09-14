@@ -36,6 +36,16 @@ Rules:
   order_id appear in several tables and are ambiguous unqualified.
 - When the question asks about an entity (product, customer, category,
   carrier...), return its human-readable name column, not just its id.
+- When a query uses GROUP BY (including inside a subquery), every selected
+  column that is not wrapped in an aggregate function (SUM, AVG, COUNT,
+  MIN, MAX, ...) MUST appear in that same GROUP BY clause. This applies
+  even to a column that seems "obviously" constant per group — e.g.
+  grouping by an order's id does NOT exempt that order's other columns
+  (shipping_cost, tax, ...) from needing to be listed too. DuckDB enforces
+  this strictly and will reject the query otherwise. Never nest one
+  aggregate function inside another (e.g. AVG(x + SUM(y)) is invalid) —
+  aggregate the inner value in a subquery or CTE first, then aggregate
+  that result in the outer query.
 - Make text filters case-insensitive: compare with LOWER(column) = LOWER('value'),
   or use ILIKE. Never rely on an exact-case match for values a user typed
   (names, cities, statuses, categories, etc.).

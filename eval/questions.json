@@ -1,0 +1,223 @@
+[
+  {
+    "id": "q01",
+    "question": "How many products are there in total?",
+    "expected_tables": ["products"],
+    "category": "single_table",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q02",
+    "question": "List all product categories.",
+    "expected_tables": ["categories"],
+    "category": "single_table",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q03",
+    "question": "What is the average rating across all reviews?",
+    "expected_tables": ["reviews"],
+    "category": "aggregation",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q04",
+    "question": "How many customers signed up in the last 30 days?",
+    "expected_tables": ["customers"],
+    "category": "date_filter",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q05",
+    "question": "What is the total revenue from all order line items?",
+    "expected_tables": ["order_items"],
+    "category": "synonym",
+    "difficulty": "medium",
+    "notes": "'revenue' is a business-term synonym for order_items.net_amount, not a column name."
+  },
+  {
+    "id": "q06",
+    "question": "Which product has the highest margin?",
+    "expected_tables": ["products"],
+    "category": "ranking",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q07",
+    "question": "How many orders were cancelled?",
+    "expected_tables": ["orders"],
+    "category": "single_table",
+    "difficulty": "easy",
+    "notes": "'cancelled' is a literal value in orders.status -- exercises value-aware retrieval."
+  },
+  {
+    "id": "q08",
+    "question": "Which 5 customers have the highest lifetime revenue?",
+    "expected_tables": ["customers"],
+    "category": "ranking",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q09",
+    "question": "What is the average delivery time by carrier?",
+    "expected_tables": ["shipments"],
+    "category": "aggregation",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q10",
+    "question": "Which customers placed an order in the last month?",
+    "expected_tables": ["customers", "orders"],
+    "category": "join",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q11",
+    "question": "What is the total revenue by product category?",
+    "expected_tables": ["categories", "products", "order_items"],
+    "category": "multi_join",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q12",
+    "question": "Which products have never been returned?",
+    "expected_tables": ["products", "order_items", "returns"],
+    "category": "multi_join",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q13",
+    "question": "What is the return rate by product category?",
+    "expected_tables": ["categories", "products", "order_items", "returns"],
+    "category": "multi_join",
+    "difficulty": "hard",
+    "notes": "'return rate' is a defined business metric (app/metadata/ecommerce.yaml)."
+  },
+  {
+    "id": "q14",
+    "question": "Which categories have the highest rated products?",
+    "expected_tables": ["categories", "products", "reviews"],
+    "category": "bridge_table",
+    "difficulty": "medium",
+    "notes": "categories and reviews aren't directly connected -- requires FK graph expansion through products."
+  },
+  {
+    "id": "q15",
+    "question": "What's the most expensive product Kai Patel has bought?",
+    "expected_tables": ["customers", "orders", "order_items", "products"],
+    "category": "bridge_table",
+    "difficulty": "hard",
+    "notes": "'Kai Patel' is a literal customer name, invisible to schema-level retrieval -- exercises value-aware retrieval (see the real bug this fixed, documented in app/rag/config.py)."
+  },
+  {
+    "id": "q16",
+    "question": "What is the average delivery time for shipments that were delayed?",
+    "expected_tables": ["shipments"],
+    "category": "single_table",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q17",
+    "question": "What is our busiest sales channel by number of orders?",
+    "expected_tables": ["orders"],
+    "category": "aggregation",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q18",
+    "question": "Which business-account customers have spent over $10,000 lifetime?",
+    "expected_tables": ["customers"],
+    "category": "single_table",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q19",
+    "question": "What are the top 3 best-selling products by quantity sold last quarter?",
+    "expected_tables": ["products", "order_items"],
+    "category": "date_filter",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q20",
+    "question": "Which customers have never left a review?",
+    "expected_tables": ["customers", "reviews"],
+    "category": "multi_join",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q21",
+    "question": "What is the average order value by customer acquisition channel?",
+    "expected_tables": ["customers", "orders", "order_items"],
+    "category": "multi_join",
+    "difficulty": "hard"
+  },
+  {
+    "id": "q22",
+    "question": "How many returns were due to being defective?",
+    "expected_tables": ["returns"],
+    "category": "single_table",
+    "difficulty": "easy",
+    "notes": "'defective' is a literal value in returns.reason."
+  },
+  {
+    "id": "q23",
+    "question": "What percentage of orders used a promo code?",
+    "expected_tables": ["orders"],
+    "category": "aggregation",
+    "difficulty": "medium"
+  },
+  {
+    "id": "q24",
+    "question": "Which brand has the most products listed?",
+    "expected_tables": ["products"],
+    "category": "aggregation",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q25",
+    "question": "Show me buyers from Austin who are business accounts.",
+    "expected_tables": ["customers"],
+    "category": "synonym",
+    "difficulty": "medium",
+    "notes": "'buyers' is a business-term synonym for customers; 'Austin' is a literal city value."
+  },
+  {
+    "id": "q26",
+    "question": "What was our GMV last quarter?",
+    "expected_tables": ["order_items", "orders"],
+    "category": "synonym",
+    "difficulty": "medium",
+    "notes": "'GMV' is a defined synonym for the revenue metric."
+  },
+  {
+    "id": "q27",
+    "question": "How does this month's revenue compare to last month's?",
+    "expected_tables": ["order_items", "orders"],
+    "category": "ambiguous",
+    "difficulty": "hard",
+    "notes": "Ambiguous: 'this month' could mean calendar month-to-date or a trailing 30 days; no single correct SQL."
+  },
+  {
+    "id": "q28",
+    "question": "What's the capital of France?",
+    "expected_tables": [],
+    "category": "out_of_scope",
+    "difficulty": "easy"
+  },
+  {
+    "id": "q29",
+    "question": "Show me the marketing campaign performance for our TikTok ads.",
+    "expected_tables": [],
+    "category": "out_of_scope",
+    "difficulty": "medium",
+    "notes": "No campaign/ad-spend data exists in this schema."
+  },
+  {
+    "id": "q30",
+    "question": "Which employees processed the most returns?",
+    "expected_tables": [],
+    "category": "out_of_scope",
+    "difficulty": "medium",
+    "notes": "No employees table exists in this schema."
+  }
+]
