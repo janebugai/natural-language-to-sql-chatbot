@@ -93,11 +93,19 @@ def required_table_recall(rag_results: list[dict], questions: dict[str, dict]) -
 
 
 def precision(rag_results: list[dict], questions: dict[str, dict]) -> float | None:
+    """
+    Excludes out-of-scope questions (empty expected_tables) -- there's no
+    correct table for those, so scoring them as 0% precision would
+    penalize the system for correctly declining rather than measure noise
+    in genuinely answerable questions. required_table_recall() and
+    top_k_retrieval_accuracy() already skip these the same way; precision()
+    not doing so was an inconsistency, not a deliberate choice.
+    """
     scores = []
     for r in rag_results:
         expected = set(questions[r["question_id"]]["expected_tables"])
         context = set(r["tables_in_context"])
-        if not context:
+        if not expected or not context:
             continue
         scores.append(len(expected & context) / len(context))
     return sum(scores) / len(scores) if scores else None

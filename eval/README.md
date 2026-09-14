@@ -52,7 +52,7 @@ these numbers, modulo any drift in the underlying models over time).
 
 RAG-specific retrieval metrics:
 - **Required-table recall: 100%** — every question's expected tables ended up in the final context
-- **Precision: 37%** — most tables in context weren't actually needed (see Limitations)
+- **Precision: 40%** (on the 27 in-scope questions; out-of-scope questions are excluded, since there's no "correct" table to score against — see Limitations)
 - **Top-k retrieval accuracy: 100%** (same measurement as recall, stricter framing: all-or-nothing per question)
 - **Bridge-table expansion: not exercised by this run** — see Limitations
 - **Avg retrieval-only latency: 749ms**
@@ -75,13 +75,16 @@ context can outperform "just show it everything," not merely a retrieval
 metric.
 
 **Recall is high, precision is not — and that's a real, honest limitation.**
-100% of needed tables always made it into context, but on average only 37%
-of the tables *in* context were actually needed. Two compounding causes,
-both visible in `eval/results.json`:
-1. `RAG_TOP_K=4` was set generously (see `app/rag/config.py`) specifically
-   to fix a real retrieval miss found during manual testing (the "Kai
-   Patel" case) — that margin helps recall but directly costs precision
-   for simpler questions that only needed 1–2 tables.
+100% of needed tables always made it into context, but on average only 40%
+of the tables *in* context were actually needed (on the 27 in-scope
+questions). Looking at the per-question breakdown (`eval/results.json`),
+the dominant cause is simple: `RAG_TOP_K=4` sends 4 tables regardless of
+how many the question actually needs, so every single-table question
+(q01, q02, q04, q06, q07, ...) lands at exactly 25% precision — 1 needed
+table out of 4 sent. `RAG_TOP_K=4` was set generously (see
+`app/rag/config.py`) specifically to fix a real retrieval miss found
+during manual testing (the "Kai Patel" case) — that margin helps recall
+but directly costs precision on the simpler questions that didn't need it.
 2. Value-aware matching and semantic/keyword retrieval are unioned, not
    ranked against each other — a table that value-matches is always
    included even if the question barely needs it.
