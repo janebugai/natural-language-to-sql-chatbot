@@ -1,0 +1,192 @@
+# Business metadata for the "ecommerce" domain (demo.db).
+#
+# This file enriches the physical schema (which the app discovers on its
+# own via app/rag/schema_loader.py) with descriptions and business
+# vocabulary. It intentionally never redeclares physical facts like column
+# types or foreign keys — the database already knows those.
+#
+# After editing this file, run:
+#   python -m app.rag.refresh --schema ecommerce
+
+schema_name: ecommerce
+
+description: >
+  E-commerce transactional and customer analytics domain covering catalog,
+  orders, fulfillment, reviews, and returns for the demo online store.
+
+domain_business_terms:
+  - ecommerce
+  - online store
+  - retail
+
+metrics:
+  revenue:
+    description: Total value of goods sold, before shipping and tax.
+    synonyms: [sales, GMV, order value, purchase value]
+  return_rate:
+    description: Share of ordered line items that were later returned.
+    synonyms: [refund rate, returned items, returns percentage]
+
+tables:
+  categories:
+    description: Product categories/departments used to group the catalog.
+    business_terms: [category, department, product group]
+    columns:
+      category_id:
+        description: Unique category identifier.
+      name:
+        description: Category display name (e.g. "Audio", "Kitchen").
+      department:
+        description: Broader merchandising department the category rolls up to.
+      target_margin:
+        description: Target gross margin fraction for products in this category.
+        business_terms: [margin, markup target]
+
+  customers:
+    description: People or businesses who place orders. One row per customer.
+    business_terms: [customer, buyer, client, account, shopper]
+    columns:
+      customer_id:
+        description: Unique customer identifier.
+      name:
+        description: Customer's full name.
+      email:
+        description: Customer's email address.
+      city:
+        description: Customer's city, when known.
+      country:
+        description: Customer's country.
+      acquisition_channel:
+        description: How the customer was acquired (organic, paid_search, referral, social, email).
+        business_terms: [acquisition source, marketing channel]
+      birth_date:
+        description: Customer's date of birth.
+      is_business:
+        description: 1 if this is a business/B2B account, 0 for a consumer account.
+        business_terms: [b2b, business account]
+      signup_date:
+        description: Date the customer created their account.
+        business_terms: [registration date, join date]
+
+  products:
+    description: Sellable catalog items. One row per product.
+    business_terms: [product, item, sku]
+    columns:
+      product_id:
+        description: Unique product identifier.
+      category_id:
+        description: Category this product belongs to.
+      product_name:
+        description: Product display name.
+        business_terms: [item name, product title]
+      brand:
+        description: Product brand.
+      unit_price:
+        description: Current list price per unit.
+        business_terms: [price, list price]
+      cost:
+        description: Cost to the business per unit.
+        business_terms: [cogs, unit cost]
+      launch_date:
+        description: Date the product was first offered for sale.
+      is_active:
+        description: 1 if the product is currently sellable, 0 if discontinued.
+        business_terms: [discontinued, active listing]
+
+  orders:
+    description: >
+      Customer purchase transactions. One row represents one order; the
+      goods on the order are in order_items.
+    business_terms: [order, purchase, transaction, sale]
+    columns:
+      order_id:
+        description: Unique order identifier.
+      customer_id:
+        description: Customer who placed the order.
+      order_date:
+        description: Date the order was placed.
+      status:
+        description: Order lifecycle status (pending, processing, completed, cancelled, refunded).
+      channel:
+        description: Channel the order was placed through (web, mobile, in_store).
+      payment_method:
+        description: Payment method used (credit_card, paypal, apple_pay, gift_card).
+      shipping_cost:
+        description: Shipping fee charged on the order.
+        business_terms: [shipping fee, delivery cost]
+      tax:
+        description: Tax charged on the order.
+      promo_code:
+        description: Promotional/discount code applied at checkout, if any.
+        business_terms: [coupon, discount code]
+
+  order_items:
+    description: >
+      Line items within an order. One row per product/order combination;
+      revenue and quantities are computed from this table.
+    business_terms: [line item, order line, purchased item]
+    columns:
+      order_item_id:
+        description: Unique order line identifier.
+      order_id:
+        description: Order this line belongs to.
+      product_id:
+        description: Product purchased on this line.
+      quantity:
+        description: Number of units purchased on this line.
+        business_terms: [units, qty]
+      unit_price:
+        description: Price actually charged per unit at time of sale (may differ from products.unit_price).
+        business_terms: [sale price]
+      discount:
+        description: Discount amount applied to this line.
+
+  reviews:
+    description: Customer product reviews. One row per review.
+    business_terms: [review, rating, customer feedback]
+    columns:
+      review_id:
+        description: Unique review identifier.
+      product_id:
+        description: Product being reviewed.
+      customer_id:
+        description: Customer who wrote the review.
+      rating:
+        description: Star rating from 1 to 5.
+      review_date:
+        description: Date the review was submitted.
+
+  shipments:
+    description: Fulfillment/shipping records. One row per shipment attempt for an order.
+    business_terms: [shipment, delivery, fulfillment]
+    columns:
+      shipment_id:
+        description: Unique shipment identifier.
+      order_id:
+        description: Order being shipped.
+      carrier:
+        description: Shipping carrier (UPS, FedEx, USPS, DHL).
+      shipped_date:
+        description: Date the shipment left the warehouse.
+      delivered_date:
+        description: Date the shipment was delivered, if delivered.
+      status:
+        description: Shipment status (label_created, in_transit, delivered).
+
+  returns:
+    description: >
+      Product returns/refunds. One row per returned order line, linked to
+      order_items rather than directly to orders.
+    business_terms: [return, refund]
+    columns:
+      return_id:
+        description: Unique return identifier.
+      order_item_id:
+        description: Order line item that was returned.
+      return_date:
+        description: Date the return was processed.
+      reason:
+        description: Return reason (wrong_size, defective, not_as_described, changed_mind, arrived_late, found_better_price).
+      refund_amount:
+        description: Amount refunded to the customer.
+        business_terms: [refund, refund value]
