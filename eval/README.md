@@ -130,6 +130,37 @@ dropped a bridge table (`products`) rather than a retrieved one, and the
 query still succeeded (it only needed `returns`) — real evidence the cap
 degrades gracefully rather than breaking things.
 
+**A concrete "false success," caught by inspecting a result, not by any
+metric here.** q12 ("which products have never been returned?") — both
+baseline and RAG generated the *identical* query:
+
+```sql
+SELECT p.product_name
+FROM products AS p
+LEFT JOIN order_items AS oi ON p.product_id = oi.product_id
+LEFT JOIN returns AS r ON oi.order_item_id = r.order_item_id
+WHERE r.return_id IS NULL
+```
+
+It executes cleanly and returns a full page of results (200 rows, hitting
+`MAX_ROWS`) — `success: true` in `results.json` for both systems, and
+nothing in the metrics above flags it. It's wrong: the filter applies at
+the *order-item* level, not the *product* level, so a product with 300
+orders and 2 returns still contributes 298 non-returned rows. Checking the
+real numbers: the uncapped query returns 6,584 rows covering **all 84 of
+84 products** (one, "Kinetic Resistance Bands," 291 times) — the actual
+answer is **5 products**. A classic one-to-many JOIN fan-out, needing
+`NOT EXISTS` (correlated per product) instead of a per-line `WHERE ... IS
+NULL`.
+
+This isn't a retrieval failure — both systems had `products`, `order_items`,
+and `returns` in context either way, so RAG gets no credit or blame beyond
+baseline here. It's exactly the gap named in Limitations below
+("table-level, not answer-level grading") turning up for real rather than
+staying hypothetical, and it's the concrete case for **query-result
+validation** as a recommended next step: something that would need to
+actually inspect *what the query computes*, not just whether it runs.
+
 ## Limitations of this evaluation itself
 
 - **30 questions, one domain, one run.** Large enough to catch real
@@ -139,7 +170,9 @@ degrades gracefully rather than breaking things.
   exact.
 - **Grading is table-level, not column-level or answer-level.** A query
   can touch all the right tables and still compute the wrong thing; this
-  eval wouldn't catch that (see Recommended next steps).
+  eval wouldn't catch that on its own metrics — q12 above is a real
+  instance, found only by manually inspecting a result, not by anything
+  this eval measures automatically (see Recommended next steps).
 - **No adversarial or ambiguous-question grading beyond execution
   success.** q27 (ambiguous date range) executed successfully for both
   systems, but "ran without error" isn't the same as "answered the
