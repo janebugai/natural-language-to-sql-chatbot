@@ -106,7 +106,6 @@ Optional: set `SQL_MODEL` / `SUMMARY_MODEL` in `.env` to use a different model
 ### 3. Build the demo database
 
 ```bash
-pip install -r requirements-dbt.txt   # dbt-core + dbt-duckdb; build-time only
 python scripts/generate_seed_data.py
 dbt seed --project-dir dbt --profiles-dir dbt
 dbt run  --project-dir dbt --profiles-dir dbt
@@ -184,7 +183,7 @@ What the Blueprint runs:
 
 | Step  | Command |
 |-------|---------|
-| Build | `pip install -r requirements.txt -r requirements-dbt.txt && python scripts/generate_seed_data.py && dbt seed --project-dir dbt --profiles-dir dbt && dbt run --project-dir dbt --profiles-dir dbt` |
+| Build | `pip install -r requirements.txt && python scripts/generate_seed_data.py && dbt seed --project-dir dbt --profiles-dir dbt && dbt run --project-dir dbt --profiles-dir dbt` |
 | Start | `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 2 -b 0.0.0.0:$PORT --timeout 120` |
 
 Notes:
@@ -202,9 +201,9 @@ Notes:
   That's fine — the app only opens it read-only. To ship your own data
   instead, replace the dbt project's seeds/models with your own and point
   `app/db.py` at wherever the resulting file (or a managed database) lives.
-- `dbt-core`/`dbt-duckdb` are only needed for the build step
-  (`requirements-dbt.txt`) — the running app itself only imports the
-  lightweight `duckdb` client (`requirements.txt`), not dbt.
+- `dbt-core`/`dbt-duckdb` in `requirements.txt` are only needed for the
+  build step — the running app itself only imports the lightweight
+  `duckdb` client, not dbt.
 - Prefer plain uvicorn? Swap the start command for
   `uvicorn app.main:app --host 0.0.0.0 --port $PORT` and drop `gunicorn` from
   `requirements.txt`.
@@ -315,7 +314,7 @@ No retrieval code (`app/rag/retrieval/`) needs to change for any of this.
 ## Tests
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements.txt
 pytest
 ```
 

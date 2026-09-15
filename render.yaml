@@ -6,7 +6,7 @@ services:
     runtime: python
     plan: free
     buildCommand: >
-      pip install -r requirements.txt -r requirements-dbt.txt &&
+      pip install -r requirements.txt &&
       python scripts/generate_seed_data.py &&
       dbt seed --project-dir dbt --profiles-dir dbt &&
       dbt run --project-dir dbt --profiles-dir dbt
